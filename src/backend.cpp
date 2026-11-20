@@ -114,7 +114,7 @@ void Backend::poll() {
     // Walking every process' fdinfo is the expensive part, so it runs less
     // often than the gauges — but on the first sample too, or the table looks
     // broken for the first two seconds.
-    if (++m_ticks == 1 || m_ticks % 3 == 0)
+    if (++m_ticks == 1 || m_ticks % 5 == 0)
         refreshProcesses();
 }
 
