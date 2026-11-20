@@ -1,0 +1,24 @@
+pkgname=tach
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='AMD GPU panel for Omarchy: clocks, temperatures, VRAM and per-process use'
+arch=('x86_64')
+url='https://github.com/ilievi187/tach'
+license=('MIT')
+depends=('qt6-base' 'qt6-declarative' 'qt6-wayland' 'polkit')
+makedepends=('gcc' 'make')
+source=()
+sha256sums=()
+
+build() {
+  cd "$startdir/.."
+  ./bin/build
+}
+
+package() {
+  cd "$startdir/.."
+  install -Dm755 build/tach "$pkgdir/usr/bin/tach"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 "$startdir/tach.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/tach.svg"
+  install -Dm644 "$startdir/tach.desktop" "$pkgdir/usr/share/applications/tach.desktop"
+}

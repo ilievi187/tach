@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/">
+        <file alias="Main.qml">Main.qml</file>
+        <file alias="components/Sparkline.qml">components/Sparkline.qml</file>
+        <file alias="components/Tile.qml">components/Tile.qml</file>
+        <file alias="i18n/bg.json">i18n/bg.json</file>
+    </qresource>
+</RCC>

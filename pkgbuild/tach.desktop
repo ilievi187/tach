@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Tach
+GenericName=GPU panel
+Comment=Live AMD GPU clocks, temperatures, VRAM and per-process use
+Name[bg]=Tach
+GenericName[bg]=Панел за GPU
+Comment[bg]=Живи честоти, температури, VRAM и натоварване по процеси за AMD GPU
+Exec=tach
+Icon=tach
+Terminal=false
+Categories=System;Monitor;HardwareSettings;
+Keywords=amd;radeon;gpu;vram;temperature;fan;clock;tach;
+StartupWMClass=tach
