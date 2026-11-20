@@ -127,6 +127,7 @@ public:
     Q_INVOKABLE QString writeVkBasaltPreset(const QString &preset);
     Q_INVOKABLE QString launchOptions(const QString &tool);
     Q_INVOKABLE void copyToClipboard(const QString &text);
+    Q_INVOKABLE void openUrl(const QString &url);
 
     // --- parsing helpers, unit tested directly -------------------------
     static int currentClockMhz(const QString &table);

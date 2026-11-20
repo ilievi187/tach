@@ -1,6 +1,8 @@
 #include "backend.h"
 
 #include <QClipboard>
+#include <QDesktopServices>
+#include <QUrl>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -617,6 +619,12 @@ QString Backend::launchOptions(const QString &tool) {
     if (tool == "everything")
         return QStringLiteral("ENABLE_VKBASALT=1 mangohud gamescope -W 2560 -H 1440 -w 1920 -h 1080 -F fsr -f -- %command%");
     return {};
+}
+
+void Backend::openUrl(const QString &url) {
+    if (!url.startsWith(QLatin1String("https://")))
+        return;
+    QDesktopServices::openUrl(QUrl(url));
 }
 
 void Backend::copyToClipboard(const QString &text) {

@@ -9,6 +9,8 @@ actually lets you adjust.
 Linux only. It reads `amdgpu` through sysfs — no daemon, no database, and no
 root for anything you can only watch.
 
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-aurorauap-ffdd00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/aurorauap)
+
 ## The tabs
 
 **Overview** — a load ring, VRAM, junction / edge / memory temperatures, board
@@ -101,6 +103,15 @@ The `set-*` verbs write root-owned sysfs files, so the GUI runs them as
 ./build/tach --screenshot shot.png --delay 40000 --tab 0
 ./build/tach --screenshot small.png --size 466x508      # the tiled case
 ```
+
+## Support
+
+Tach is free software under the MIT licence, with no paid tier and no telemetry.
+If it earns a place on your machine, you can buy me a coffee:
+
+**[buymeacoffee.com/aurorauap](https://buymeacoffee.com/aurorauap)**
+
+The same link is in the app, at the bottom of the sidebar.
 
 ## License
 

@@ -160,6 +160,38 @@ ApplicationWindow {
 
                     Item { Layout.fillHeight: true }
 
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 24
+                        Layout.bottomMargin: 6
+
+                        RowLayout {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            spacing: 6
+
+                            Text {
+                                text: "♥"
+                                color: "#ff6b8a"
+                                font.pixelSize: 12
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                visible: !win.compact
+                                text: qsTr("Buy me a coffee")
+                                color: "#5f6773"
+                                font.pixelSize: 11
+                                elide: Text.ElideRight
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: backend.openUrl("https://buymeacoffee.com/aurorauap")
+                        }
+                    }
+
                     Text {
                         Layout.fillWidth: true
                         visible: !win.compact
