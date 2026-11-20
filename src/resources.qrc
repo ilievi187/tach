@@ -1,8 +1,15 @@
 <RCC>
     <qresource prefix="/">
         <file alias="Main.qml">Main.qml</file>
-        <file alias="components/Sparkline.qml">components/Sparkline.qml</file>
-        <file alias="components/Tile.qml">components/Tile.qml</file>
+        <file alias="components/ArcGauge.qml">components/ArcGauge.qml</file>
+        <file alias="components/Chart.qml">components/Chart.qml</file>
+        <file alias="components/LegendDot.qml">components/LegendDot.qml</file>
+        <file alias="components/OverlaysTab.qml">components/OverlaysTab.qml</file>
+        <file alias="components/OverviewTab.qml">components/OverviewTab.qml</file>
+        <file alias="components/Panel.qml">components/Panel.qml</file>
+        <file alias="components/ProcessesTab.qml">components/ProcessesTab.qml</file>
+        <file alias="components/TuningTab.qml">components/TuningTab.qml</file>
+        <file alias="components/Format.js">components/Format.js</file>
         <file alias="i18n/bg.json">i18n/bg.json</file>
     </qresource>
 </RCC>

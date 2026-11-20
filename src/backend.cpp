@@ -1,20 +1,51 @@
 #include "backend.h"
 
+#include <QClipboard>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QHash>
+#include <QGuiApplication>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QSaveFile>
+#include <QStandardPaths>
 #include <QStringList>
 
 namespace {
 const QStringList kLevels{"auto", "high", "low"};
+const QString kBlockBegin = "# >>> tach managed block >>>";
+const QString kBlockEnd = "# <<< tach managed block <<<";
 
 QString firstHwmon(const QString &card) {
     const QDir dir(card + "/hwmon");
     const auto entries = dir.entryList({"hwmon*"}, QDir::Dirs | QDir::NoDotAndDotDot);
     return entries.isEmpty() ? QString() : card + "/hwmon/" + entries.first();
+}
+
+double microToWatts(const QString &raw) {
+    return raw.trimmed().toDouble() / 1e6;
+}
+
+QString backupPath(const QString &path) {
+    return path + ".bak-" + QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss");
+}
+
+bool writeAtomic(const QString &path, const QString &contents, QString *failure) {
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        if (failure)
+            *failure = file.errorString();
+        return false;
+    }
+    file.write(contents.toUtf8());
+    if (!file.commit()) {
+        if (failure)
+            *failure = file.errorString();
+        return false;
+    }
+    return true;
 }
 } // namespace
 
@@ -63,18 +94,53 @@ void Backend::setCardPath(const QString &cardPath) {
     // cardN/device is a symlink into the PCI tree, so the resolved name is the
     // BDF address that /proc/<pid>/fdinfo reports as drm-pdev.
     m_pci = QFileInfo(cardPath).canonicalFilePath().section('/', -1);
+
     m_controlFile = cardPath + "/power_dpm_force_performance_level";
     if (!QFileInfo::exists(m_controlFile))
         m_controlFile.clear();
 
+    m_profileFile = cardPath + "/pp_power_profile_mode";
+    if (!QFileInfo::exists(m_profileFile))
+        m_profileFile.clear();
+
+    const QString hwmon = firstHwmon(cardPath);
+    m_powerCapFile = hwmon.isEmpty() ? QString() : hwmon + "/power1_cap";
+    if (!m_powerCapFile.isEmpty() && !QFileInfo::exists(m_powerCapFile))
+        m_powerCapFile.clear();
+    if (!m_powerCapFile.isEmpty()) {
+        m_powerCapW = microToWatts(readFile(m_powerCapFile));
+        m_powerCapMinW = microToWatts(readFile(hwmon + "/power1_cap_min"));
+        m_powerCapMaxW = microToWatts(readFile(hwmon + "/power1_cap_max"));
+        m_powerCapDefaultW = microToWatts(readFile(hwmon + "/power1_cap_default"));
+    }
+
+    // Overdrive only appears when the kernel was booted with the feature mask
+    // that unlocks it; without these files there is nothing to control.
+    m_canOverdrive = QFileInfo::exists(cardPath + "/pp_od_clk_voltage") ||
+                     QFileInfo::exists(cardPath + "/gpu_od");
+    m_canFanControl = QFileInfo::exists(cardPath + "/gpu_od/fan_ctrl/fan_curve") ||
+                      QFileInfo::exists(cardPath + "/gpu_od/fan_ctrl/fan_speed");
+
     bool ok = false;
     const quint32 deviceId = readFile(cardPath + "/device").trimmed().toUInt(&ok, 0);
     m_cardName = ok ? cardNameForDeviceId(deviceId) : tr("AMD GPU");
-    m_perfLevel = readFile(m_controlFile).trimmed();
+    m_perfLevel = m_controlFile.isEmpty() ? QString() : readFile(m_controlFile).trimmed();
     m_error.clear();
 
-    if (m_utilHistory.isEmpty())
+    detectOverlayTools();
     emit cardChanged();
+}
+
+void Backend::detectOverlayTools() {
+    auto has = [](const QString &binary) {
+        return !QStandardPaths::findExecutable(binary).isEmpty();
+    };
+    m_overlayTools = QVariantMap{
+        {"mangohud", has("mangohud")},
+        {"vkbasalt", has("vkbasalt")},
+        {"gamescope", has("gamescope")},
+        {"goverlay", has("goverlay")},
+    };
 }
 
 void Backend::poll() {
@@ -91,14 +157,31 @@ void Backend::poll() {
         m_edgeTemp = readFile(hwmon + "/temp1_input").trimmed().toInt() / 1000;
         m_junctionTemp = readFile(hwmon + "/temp2_input").trimmed().toInt() / 1000;
         m_memTemp = readFile(hwmon + "/temp3_input").trimmed().toInt() / 1000;
-        m_power = readFile(hwmon + "/power1_average").trimmed().toDouble() / 1e6;
+        m_power = microToWatts(readFile(hwmon + "/power1_average"));
         m_fanRpm = readFile(hwmon + "/fan1_input").trimmed().toInt();
         m_fanMax = readFile(hwmon + "/fan1_max").trimmed().toInt();
+        if (!m_powerCapFile.isEmpty())
+            m_powerCapW = microToWatts(readFile(m_powerCapFile));
     }
 
     m_coreClock = currentClockMhz(readFile(m_card + "/pp_dpm_sclk"));
     m_memClock = currentClockMhz(readFile(m_card + "/pp_dpm_mclk"));
-    m_perfLevel = readFile(m_controlFile).trimmed();
+    if (!m_controlFile.isEmpty())
+        m_perfLevel = readFile(m_controlFile).trimmed();
+
+    if (!m_profileFile.isEmpty()) {
+        int active = -1;
+        const QVariantList profiles = parsePowerProfiles(readFile(m_profileFile), &active);
+        if (!profiles.isEmpty()) {
+            m_powerProfiles = profiles;
+            m_powerProfileIndex = active;
+            for (const auto &entry : profiles) {
+                const QVariantMap map = entry.toMap();
+                if (map.value("index").toInt() == active)
+                    m_powerProfileName = map.value("name").toString();
+            }
+        }
+    }
 
     const QString speed = readFile(m_card + "/current_link_speed").trimmed();
     const QString width = readFile(m_card + "/current_link_width").trimmed();
@@ -113,7 +196,7 @@ void Backend::poll() {
 
     // Walking every process' fdinfo is the expensive part, so it runs less
     // often than the gauges — but on the first sample too, or the table looks
-    // broken for the first two seconds.
+    // broken at startup. Five seconds keeps idle cost around 1% of a core.
     if (++m_ticks == 1 || m_ticks % 5 == 0)
         refreshProcesses();
 }
@@ -128,7 +211,12 @@ void Backend::refreshProcesses() {
     if (m_pci.isEmpty())
         return;
 
-    QHash<int, qint64> byPid;
+    // Aggregate per DRM client first: a process can hold several descriptors
+    // of the same client, and summing those would double-count both the VRAM
+    // and the engine time.
+    QHash<int, QHash<QString, qint64>> vramByClient;
+    QHash<int, QHash<QString, qint64>> engineByClient;
+
     const QDir proc("/proc");
     const auto entries = proc.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
     for (const auto &entry : entries) {
@@ -140,34 +228,124 @@ void Backend::refreshProcesses() {
         const auto fds = QDir(fdinfoDir).entryList(QDir::Files);
         if (fds.isEmpty())
             continue;
-        qint64 total = 0;
-        for (const auto &fd : fds)
-            total += vramForProcess(readFile(fdinfoDir + "/" + fd), m_pci);
-        if (total > 0)
-            byPid.insert(pid, total);
+
+        for (const auto &fd : fds) {
+            const QString contents = readFile(fdinfoDir + "/" + fd);
+            if (contents.isEmpty() || !contents.contains(QLatin1String("drm-client-id")))
+                continue;
+
+            bool belongs = m_pci.isEmpty();
+            QString client;
+            qint64 vram = 0;
+            qint64 engine = -1;
+            for (const auto &rawLine : contents.split('\n')) {
+                const QString line = rawLine.trimmed();
+                if (line.startsWith(QLatin1String("drm-pdev:"))) {
+                    const QString value = line.section(':', 1).trimmed();
+                    belongs = m_pci.isEmpty() || value == m_pci;
+                    if (!belongs)
+                        break;
+                } else if (line.startsWith(QLatin1String("drm-client-id:"))) {
+                    client = line.section(':', 1).trimmed();
+                } else if (line.startsWith(QLatin1String("drm-total-vram:"))) {
+                    vram += parseSize(line.section(':', 1));
+                } else if (line.startsWith(QLatin1String("drm-engine-gfx:"))) {
+                    engine = qMax(engine, line.section(':', 1).trimmed().section(' ', 0, 0).toLongLong());
+                }
+            }
+            if (!belongs || client.isEmpty())
+                continue;
+            if (vram > 0)
+                vramByClient[pid].insert(client, vram);
+            if (engine > 0)
+                engineByClient[pid].insert(client, engine);
+        }
     }
 
+    const qint64 nowNs = QDateTime::currentMSecsSinceEpoch() * 1000000LL;
+    const qint64 elapsed = m_engineStampNs > 0 ? nowNs - m_engineStampNs : 0;
+
     QList<QPair<int, qint64>> sorted;
-    sorted.reserve(byPid.size());
-    for (auto it = byPid.begin(); it != byPid.end(); ++it)
-        sorted.append({it.key(), it.value()});
+    for (auto it = vramByClient.begin(); it != vramByClient.end(); ++it) {
+        qint64 total = 0;
+        for (auto client = it.value().begin(); client != it.value().end(); ++client)
+            total += client.value();
+        sorted.append({it.key(), total});
+    }
     std::sort(sorted.begin(), sorted.end(), [](const auto &a, const auto &b) {
         return a.second > b.second;
     });
 
+    QHash<int, qint64> newTotals;
     QVariantList rows;
-    for (int i = 0; i < sorted.size() && i < 8; ++i) {
+    for (int i = 0; i < sorted.size() && i < 12; ++i) {
         const int pid = sorted[i].first;
         const qint64 bytes = sorted[i].second;
-        const QString name = readFile(QString("/proc/%1/comm").arg(pid)).trimmed();
+
+        qint64 engineTotal = 0;
+        const auto engine = engineByClient.value(pid);
+        for (auto client = engine.begin(); client != engine.end(); ++client)
+            engineTotal += client.value();
+        if (engineTotal > 0)
+            newTotals.insert(pid, engineTotal);
+
+        double busy = 0;
+        if (elapsed > 0 && m_engineTotals.contains(pid) && engineTotal > 0) {
+            const qint64 delta = engineTotal - m_engineTotals.value(pid);
+            if (delta > 0)
+                busy = qBound(0.0, double(delta) / double(elapsed) * 100.0, 100.0);
+        }
+
+        // comm is capped at 15 characters; the exe symlink carries the real name.
+        QString name = QFileInfo(QString("/proc/%1/exe").arg(pid)).symLinkTarget();
+        if (!name.isEmpty()) {
+            name = name.section('/', -1);
+            if (name.endsWith(QLatin1String(" (deleted)")))
+                name.chop(10);
+        }
+        if (name.isEmpty())
+            name = readFile(QString("/proc/%1/comm").arg(pid)).trimmed();
         rows.append(QVariantMap{
             {"pid", pid},
             {"name", name.isEmpty() ? tr("unknown") : name},
             {"vram", bytes},
+            {"busy", busy},
         });
     }
+
+    m_engineTotals = newTotals;
+    m_engineStampNs = nowNs;
+
     m_processes = rows;
     emit processesChanged();
+}
+
+void Backend::runPrivileged(const QStringList &arguments, const QString &successMessage) {
+    if (m_busy)
+        return;
+
+    setStatus(tr("Asking for permission…"), true);
+
+    auto *process = new QProcess(this);
+    connect(process, &QProcess::errorOccurred, this, [this, process](QProcess::ProcessError error) {
+        process->deleteLater();
+        if (error == QProcess::FailedToStart)
+            setStatus(tr("Could not run pkexec — is tach installed?"));
+    });
+    connect(process, &QProcess::finished, this,
+            [this, process, successMessage](int code, QProcess::ExitStatus status) {
+                const QString stderrText = QString::fromUtf8(process->readAllStandardError()).trimmed();
+                process->deleteLater();
+                if (code == 0 && status == QProcess::NormalExit) {
+                    setStatus(successMessage);
+                    poll();
+                } else if (code == 126) {
+                    setStatus(tr("Permission denied"));
+                } else {
+                    setStatus(stderrText.isEmpty() ? tr("The change was not applied") : stderrText);
+                }
+            });
+    process->start("pkexec", arguments);
 }
 
 void Backend::setPerformanceLevel(const QString &level) {
@@ -179,30 +357,32 @@ void Backend::setPerformanceLevel(const QString &level) {
         setStatus(tr("This GPU does not expose a performance level"));
         return;
     }
-    if (m_busy)
+    runPrivileged({"tach", "set-level", level}, tr("Performance level set to %1").arg(level));
+}
+
+void Backend::setPowerProfile(int index) {
+    if (index < 0) {
+        setStatus(tr("Pick a power profile first"));
         return;
+    }
+    runPrivileged({"tach", "set-profile", QString::number(index)}, tr("Power profile changed"));
+}
 
-    setStatus(tr("Asking for permission to set %1…").arg(level), true);
+void Backend::setPowerCap(double watts) {
+    if (!canPowerCap()) {
+        setStatus(tr("This GPU does not expose a power limit"));
+        return;
+    }
+    const double clamped = qBound(m_powerCapMinW, watts, m_powerCapMaxW);
+    runPrivileged({"tach", "set-power-cap", QString::number(qRound(clamped))},
+                  tr("Power limit set to %1 W").arg(qRound(clamped)));
+}
 
-    auto *process = new QProcess(this);
-    connect(process, &QProcess::errorOccurred, this, [this, process](QProcess::ProcessError error) {
-        process->deleteLater();
-        if (error == QProcess::FailedToStart)
-            setStatus(tr("Could not run pkexec — is tach installed?"));
-    });
-    connect(process, &QProcess::finished, this, [this, process, level](int code, QProcess::ExitStatus status) {
-        const QString stderrText = QString::fromUtf8(process->readAllStandardError()).trimmed();
-        process->deleteLater();
-        if (code == 0 && status == QProcess::NormalExit) {
-            setStatus(tr("Performance level set to %1").arg(level));
-            poll();
-        } else if (code == 126) {
-            setStatus(tr("Permission denied"));
-        } else {
-            setStatus(stderrText.isEmpty() ? tr("Could not set the performance level") : stderrText);
-        }
-    });
-    process->start("pkexec", {"tach", "set-level", level});
+QString Backend::overdriveHint() const {
+    if (m_canOverdrive)
+        return {};
+    return tr("Add amdgpu.ppfeaturemask=0xffffffff to the kernel command line and reboot to unlock "
+              "clock, voltage and fan controls.");
 }
 
 void Backend::setStatus(const QString &message, bool busy) {
@@ -299,6 +479,159 @@ qint64 Backend::vramForProcess(const QString &fdinfo, const QString &pciAddress)
     return belongs ? vram : 0;
 }
 
+QHash<QString, qint64> Backend::engineTimeForProcess(const QString &fdinfo, const QString &pciAddress) {
+    QHash<QString, qint64> result;
+    bool belongs = pciAddress.isEmpty();
+    QString client;
+    qint64 engine = -1;
+    for (const auto &rawLine : fdinfo.split('\n')) {
+        const QString line = rawLine.trimmed();
+        if (line.startsWith(QLatin1String("drm-pdev:"))) {
+            const QString value = line.section(':', 1).trimmed();
+            belongs = pciAddress.isEmpty() || value == pciAddress;
+            if (!belongs)
+                return result;
+        } else if (line.startsWith(QLatin1String("drm-client-id:"))) {
+            client = line.section(':', 1).trimmed();
+        } else if (line.startsWith(QLatin1String("drm-engine-gfx:"))) {
+            engine = qMax(engine, line.section(':', 1).trimmed().section(' ', 0, 0).toLongLong());
+        }
+    }
+    if (belongs && !client.isEmpty() && engine > 0)
+        result.insert(client, engine);
+    return result;
+}
+
 QStringList Backend::performanceLevels() {
     return kLevels;
+}
+
+// The table looks like:
+//   PROFILE_INDEX(NAME) CLOCK_TYPE(NAME) FPS …
+//    0 BOOTUP_DEFAULT*:
+//                       0(       GFXCLK) …
+//    1 3D_FULL_SCREEN :
+QVariantList Backend::parsePowerProfiles(const QString &table, int *activeIndex) {
+    QVariantList profiles;
+    static const QRegularExpression entry(R"(^\s*(\d+)\s+([A-Z0-9_]+)\s*(\*)?\s*:)");
+    if (activeIndex)
+        *activeIndex = -1;
+
+    for (const auto &rawLine : table.split('\n')) {
+        const auto match = entry.match(rawLine);
+        if (!match.hasMatch())
+            continue;
+        const int index = match.captured(1).toInt();
+        const QString name = match.captured(2);
+        const bool active = !match.captured(3).isEmpty();
+        profiles.append(QVariantMap{{"index", index}, {"name", name}, {"active", active}});
+        if (active && activeIndex)
+            *activeIndex = index;
+    }
+    return profiles;
+}
+
+QString Backend::mergeManagedBlock(const QString &existing, const QString &block) {
+    QString out = existing;
+    const int start = out.indexOf(kBlockBegin);
+    if (start >= 0) {
+        const int end = out.indexOf(kBlockEnd, start);
+        if (end >= 0)
+            out.remove(start, end - start + kBlockEnd.length());
+        else
+            out.remove(start, out.length() - start);
+    }
+    out = out.trimmed();
+    if (!out.isEmpty())
+        out += "\n\n";
+    out += block.trimmed() + "\n";
+    return out;
+}
+
+QString Backend::writeMangoHudPreset(const QString &preset) {
+    static const QMap<QString, QString> presets{
+        {"minimal", "fps\ngpu_temp\nvram\nframe_timing=0\n"},
+        {"compact", "fps\ngpu_stats\ngpu_temp\ngpu_clock\nvram\ncpu_stats\nframe_timing\n"},
+        {"full", "fps\ngpu_stats\ngpu_temp\ngpu_junction_temp\ngpu_mem_temp\ngpu_clock\ngpu_power\n"
+                 "vram\ncpu_stats\ncpu_temp\nram\nfan\nframe_timing\ntime\ngpu_name\n"},
+    };
+    if (!presets.contains(preset))
+        return tr("Unknown preset");
+
+    const QString path = QDir::homePath() + "/.config/MangoHud/MangoHud.conf";
+    const QString block = kBlockBegin + "\n" + presets.value(preset) + kBlockEnd;
+    const QString existing = readFile(path);
+    if (!existing.isEmpty()) {
+        QString failure;
+        if (!writeAtomic(backupPath(path), existing, &failure))
+            return tr("Could not back up %1: %2").arg(path, failure);
+    }
+    QString failure;
+    if (!writeAtomic(path, mergeManagedBlock(existing, block), &failure))
+        return tr("Could not write %1: %2").arg(path, failure);
+
+    detectOverlayTools();
+    const QString message = tr("Wrote the %1 MangoHud preset to %2").arg(preset, path);
+    setStatus(message);
+    return message;
+}
+
+QString Backend::writeVkBasaltPreset(const QString &preset) {
+    static const QMap<QString, QString> presets{
+        {"fxaa", "effects = fxaa\nfxaaQualitySubpix = 0.75\n"},
+        {"smaa", "effects = smaa\nsmaaEdgeDetection = luma\n"},
+        {"cas", "effects = cas\ncasSharpness = 0.4\n"},
+        {"dls", "effects = dls\ndlsSharpness = 0.5\ndlsDenoise = 0.17\ndlsVMStrength = 0.05\n"},
+    };
+    if (!presets.contains(preset))
+        return tr("Unknown preset");
+
+    const QString path = QDir::homePath() + "/.config/vkBasalt/vkBasalt.conf";
+    const QString block = kBlockBegin + "\nenableOnLaunch = True\n" + presets.value(preset) + kBlockEnd;
+    const QString existing = readFile(path);
+    if (!existing.isEmpty()) {
+        QString failure;
+        if (!writeAtomic(backupPath(path), existing, &failure))
+            return tr("Could not back up %1: %2").arg(path, failure);
+    }
+    QString failure;
+    if (!writeAtomic(path, mergeManagedBlock(existing, block), &failure))
+        return tr("Could not write %1: %2").arg(path, failure);
+
+    detectOverlayTools();
+    const QString message = tr("Wrote the %1 vkBasalt preset to %2").arg(preset, path);
+    setStatus(message);
+    return message;
+}
+
+// There is no global FSR switch on Linux: Radeon Super Resolution lives in
+// gamescope, and MangoHud and vkBasalt are enabled per launch through the
+// environment. These strings are what belongs in a game's launch options.
+QString Backend::launchOptions(const QString &tool) {
+    if (tool == "mangohud")
+        return QStringLiteral("mangohud %command%");
+    if (tool == "vkbasalt")
+        return QStringLiteral("ENABLE_VKBASALT=1 %command%");
+    if (tool == "fsr")
+        return QStringLiteral("gamescope -W 2560 -H 1440 -w 1920 -h 1080 -F fsr -f -- %command%");
+    if (tool == "everything")
+        return QStringLiteral("ENABLE_VKBASALT=1 mangohud gamescope -W 2560 -H 1440 -w 1920 -h 1080 -F fsr -f -- %command%");
+    return {};
+}
+
+void Backend::copyToClipboard(const QString &text) {
+    if (!qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY")) {
+        QProcess process;
+        process.start("wl-copy", {"--type", "text/plain"});
+        if (process.waitForStarted(1500)) {
+            process.write(text.toUtf8());
+            process.closeWriteChannel();
+            if (process.waitForFinished(1500) && process.exitCode() == 0) {
+                setStatus(tr("Copied"));
+                return;
+            }
+        }
+    }
+    QGuiApplication::clipboard()->setText(text);
+    setStatus(tr("Copied"));
 }

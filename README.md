@@ -1,100 +1,106 @@
 # Tach
 
-An AMD GPU panel for Omarchy. One window, one job: show what the card is doing
-right now, how it got there, and who is using it.
+An AMD GPU panel for Omarchy. Four tabs, one job: show what the card is doing,
+how it got there, who is using it — and adjust the handful of things the kernel
+actually lets you adjust.
 
-<img src="docs/tach.png" width="820" alt="Tach showing a Radeon RX 7900 XT at 99% utilisation, 82 °C junction, 264 W and the processes holding VRAM">
+<img src="docs/tach.png" width="820" alt="Overview: 99% load, 19.2 of 20 GB VRAM, 77 °C junction, 264 W, a minute of history">
 
-Linux only. It reads `amdgpu` through sysfs — no daemon, no root, no database.
+Linux only. It reads `amdgpu` through sysfs — no daemon, no database, and no
+root for anything you can only watch.
 
-## Why not `radeontop`
+## The tabs
 
-`radeontop` is a terminal app that shows card-wide counters and nothing else.
-Tach keeps the same measurements, but:
+**Overview** — a load ring, VRAM, junction / edge / memory temperatures, board
+power and its limit, a minute of history on one chart, plus core clock, memory
+clock, fan and PCIe link.
 
-- **shows who is using the memory** — per-process VRAM from `/proc/<pid>/fdinfo`,
-  so "where did my 19 GB go" is answered by `llama-server`, not a mystery;
-- **keeps a minute of history** so a spike is visible after it happened;
-- **fits the desktop** — theme accent, window rounding, keyboard only, and a
-  layout that reflows when Omarchy tiles it into a narrow column;
-- **is readable in Bulgarian** and follows Setup → Language live, like the rest
-  of Omarchy.
+<img src="docs/processes.png" width="410" alt="Processes tab"> <img src="docs/tuning.png" width="410" alt="Tuning tab">
 
-## What it shows
+**Processes** — every process holding VRAM, with its share of GPU time. Sort by
+either. VRAM is `drm-total-vram` summed **per DRM client**, so a process with
+several descriptors is not counted twice; GPU time is the change in
+`drm-engine-gfx` between two samples, which is how you catch the one Chromium tab
+that is actually rendering.
 
-| Reading | Source |
-|---|---|
-| Utilisation and memory-controller busy | `gpu_busy_percent`, `mem_busy_percent` |
-| VRAM used and total | `mem_info_vram_used`, `mem_info_vram_total` |
-| Edge, junction and memory temperature | `hwmon/*/temp1..3_input` |
-| Board power | `hwmon/*/power1_average` |
-| Fan speed (and "off" in zero-RPM mode) | `hwmon/*/fan1_input`, `fan1_max` |
-| Core and memory clock | the active state in `pp_dpm_sclk`, `pp_dpm_mclk` |
-| PCIe link | `current_link_speed`, `current_link_width` |
-| DPM performance level | `power_dpm_force_performance_level` |
-| Per-process VRAM | `drm-total-vram` summed per `drm-client-id` in `/proc/*/fdinfo/*` |
+**Tuning** — three real controls, all through `pkexec`, so the password prompt is
+the desktop's own polkit agent and Tach never holds a password:
 
-The screenshot above is a real capture: 99% utilisation, 82 °C junction, 264 W,
-1468 rpm, and `llama-server` holding 17.29 GB.
+| Control | File | Why it is here |
+|---|---|---|
+| Performance level (auto/high/low) | `power_dpm_force_performance_level` | The simplest way to stop the card downclocking |
+| Power limit (slider) | `hwmon/*/power1_cap` | Quiet and cool vs. fast, without touching voltages |
+| Power profile | `pp_power_profile_mode` | 3D_FULL_SCREEN, VIDEO, POWER_SAVING, COMPUTE… |
+
+**Overlays** — MangoHud and vkBasalt presets, written into a block Tach owns
+(inside `# >>> tach managed block >>>`), with the previous file backed up first.
+Plus the exact launch-option strings for MangoHud, vkBasalt and FSR, one click to
+copy.
+
+## What is deliberately missing
+
+**Overclocking and fan curves.** They live behind `pp_od_clk_voltage` and
+`gpu_od/fan_ctrl`, which this kernel does not expose (`ppfeaturemask=0xfff7bfff`).
+Tuning shows an Overdrive panel that says so and offers the kernel parameter to
+copy — rather than sliders that do nothing. Writing a wrong clock/voltage pair can
+hang the card, so when it is enabled it will get its own careful pass.
+
+**A global FSR switch.** There is no such knob on Linux. Radeon Super Resolution
+is `gamescope -F fsr` on the launch command, and FSR is otherwise a per-game
+setting. The Overlays tab gives you the string; it does not pretend to toggle a
+driver feature that does not exist.
+
+**NVIDIA and Intel.** Different interfaces entirely. A settings screen that
+silently does nothing would be worse than no app.
 
 ## Install
 
 ```sh
-./bin/install          # builds with qmake6/make, then makepkg -fsi
+./bin/install          # qmake6 + make, then makepkg -fsi
 ```
 
-It lands in the launcher (Super + Space) as **Tach**. Build only:
-
-```sh
-./bin/build && ./build/tach
-```
-
-Needs `qt6-base`, `qt6-declarative`, `qt6-wayland` and `polkit` (all part of an
-Omarchy install).
+Lands in the launcher (Super + Space) as **Tach**. Needs `qt6-base`,
+`qt6-declarative`, `qt6-wayland` and `polkit` — all part of an Omarchy install.
 
 ## Keys
 
 | Key | Action |
 |---|---|
+| `1` – `4` | Overview, Processes, Tuning, Overlays |
 | `R` | Read a fresh sample |
-| `1` `2` `3` | Performance level: auto, high, low |
-| `?` | Show the key list |
+| `?` | Key list |
 | `Q` | Quit |
 
 ## Command line
 
 ```sh
-tach status            # human-readable snapshot
-tach status --json     # same, for scripts and agents
-tach set-level high    # writes the DPM level; run under pkexec for root
+tach status                 # human-readable snapshot
+tach status --json          # for scripts and agents
+tach set-level high         # DPM level
+tach set-profile 1          # power profile index
+tach set-power-cap 250      # watts, clamped to the driver's min/max
 ```
 
-The GUI calls `pkexec tach set-level …` when you pick a level, so the admin
-password dialog comes from the desktop's own polkit agent — the app never asks
-for or stores a password itself.
+The `set-*` verbs write root-owned sysfs files, so the GUI runs them as
+`pkexec tach set-…`.
 
-## What it deliberately does not do
+## How it stays honest
 
-Fan curves, voltage and clock overrides. This kernel does not expose
-`gpu_od/fan_ctrl` for Navi 31, and guessing at `pp_od_clk_voltage` from a GUI is
-how people end up with a bricked card. Tach shows the fan and the performance
-level and leaves the rest to the kernel defaults.
-
-It is also AMD-only on purpose: NVIDIA and Intel expose entirely different
-interfaces, and pretending otherwise would mean a settings screen that silently
-does nothing.
+- One sample a second; the `/proc` walk runs every five, which keeps idle cost
+  around **1% of one core**.
+- The sysfs root is a constructor argument, so all 21 tests run against a fake
+  card tree in a temp directory — no GPU, no root, no flakiness. Three bugs were
+  caught this way, including `drm-engine-gfx` being `"1000 ns"` (the unit made
+  every GPU-time column read zero).
+- Anything the driver does not expose is described, not faked.
 
 ## Development
 
 ```sh
-./bin/test                                   # 16 Qt Test cases, offscreen
-./build/tach --screenshot shot.png --delay 40000
-./build/tach --screenshot small.png --size 466x508   # the tiled case
+./bin/test                                              # 21 Qt Test cases
+./build/tach --screenshot shot.png --delay 40000 --tab 0
+./build/tach --screenshot small.png --size 466x508      # the tiled case
 ```
-
-The backend takes the sysfs root as a constructor argument, so tests build a
-fake card tree in a temporary directory and drive `poll()` directly — no GPU
-needed, no root.
 
 ## License
 

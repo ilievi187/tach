@@ -40,6 +40,16 @@ private:
         write(card + "/hwmon/hwmon3/power1_average", "74000000\n");
         write(card + "/hwmon/hwmon3/fan1_input", "0\n");
         write(card + "/hwmon/hwmon3/fan1_max", "3600\n");
+        write(card + "/hwmon/hwmon3/power1_cap", "305000000\n");
+        write(card + "/hwmon/hwmon3/power1_cap_min", "200000000\n");
+        write(card + "/hwmon/hwmon3/power1_cap_max", "330000000\n");
+        write(card + "/hwmon/hwmon3/power1_cap_default", "330000000\n");
+        write(card + "/pp_power_profile_mode",
+              "PROFILE_INDEX(NAME) CLOCK_TYPE(NAME) FPS\n"
+              " 0 BOOTUP_DEFAULT*:\n"
+              "                    0(       GFXCLK)       0       1\n"
+              " 1 3D_FULL_SCREEN :\n"
+              "                    0(       GFXCLK)       0       0\n");
         return card;
     }
 
@@ -145,6 +155,73 @@ private slots:
         Backend backend(dir.path());
         QVERIFY(backend.available());
         QVERIFY(!backend.canControl());
+    }
+
+    void parsesPowerProfiles()
+    {
+        const QString table = "PROFILE_INDEX(NAME) CLOCK_TYPE(NAME) FPS\n"
+                              " 0 BOOTUP_DEFAULT*:\n"
+                              "                    0(       GFXCLK)       0       1\n"
+                              " 1 3D_FULL_SCREEN :\n"
+                              "                    0(       GFXCLK)       0       0\n"
+                              " 3          VIDEO :\n";
+        int active = -1;
+        const QVariantList profiles = Backend::parsePowerProfiles(table, &active);
+        QCOMPARE(profiles.size(), 3);
+        QCOMPARE(active, 0);
+        QCOMPARE(profiles.at(0).toMap().value("name").toString(), QString("BOOTUP_DEFAULT"));
+        QCOMPARE(profiles.at(1).toMap().value("index").toInt(), 1);
+        QCOMPARE(profiles.at(2).toMap().value("name").toString(), QString("VIDEO"));
+    }
+
+    void replacesOnlyItsOwnManagedBlock()
+    {
+        const QString existing =
+            "fps\n"
+            "# my own line\n"
+            "# >>> tach managed block >>>\n"
+            "stale\n"
+            "# <<< tach managed block <<<\n";
+        const QString block = "# >>> tach managed block >>>\nfresh\n# <<< tach managed block <<<";
+
+        const QString merged = Backend::mergeManagedBlock(existing, block);
+        QVERIFY(merged.contains("# my own line"));
+        QVERIFY(merged.contains("fresh"));
+        QVERIFY(!merged.contains("stale"));
+        QCOMPARE(merged.count(">>> tach managed block >>>"), 1);
+        QCOMPARE(merged.count("fps"), 1);
+    }
+
+    void appendsManagedBlockToUserConfig()
+    {
+        const QString block = "# >>> tach managed block >>>\nfps\n# <<< tach managed block <<<";
+        const QString merged = Backend::mergeManagedBlock("custom=vkbasalt\n", block);
+        QVERIFY(merged.startsWith("custom=vkbasalt"));
+        QVERIFY(merged.contains("fps"));
+    }
+
+    void readsEngineTimeForOurCard()
+    {
+        const QString fd = "drm-pdev:\t0000:03:00.0\ndrm-client-id:\t7\ndrm-engine-gfx:\t1000 ns\n";
+        QCOMPARE(Backend::engineTimeForProcess(fd, "0000:03:00.0").value("7"), 1000LL);
+        QVERIFY(Backend::engineTimeForProcess(fd, "0000:7a:00.0").isEmpty());
+    }
+
+    void readsPowerCapAndProfiles()
+    {
+        QTemporaryDir dir;
+        fakeCard(dir.path());
+
+        Backend backend(dir.path());
+        QVERIFY(backend.canPowerCap());
+        QCOMPARE(backend.powerCapW(), 305.0);
+        QCOMPARE(backend.powerCapMinW(), 200.0);
+        QCOMPARE(backend.powerCapMaxW(), 330.0);
+        QCOMPARE(backend.powerProfiles().size(), 2);
+        QCOMPARE(backend.powerProfileIndex(), 0);
+        QCOMPARE(backend.powerProfile(), QString("BOOTUP_DEFAULT"));
+        QVERIFY(!backend.canOverdrive());
+        QVERIFY(!backend.overdriveHint().isEmpty());
     }
 
     void themeFallsBack()

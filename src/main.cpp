@@ -23,7 +23,8 @@ int main(int argc, char *argv[]) {
         args << QString::fromLocal8Bit(argv[i]);
 
     const QString first = args.value(0);
-    const bool headless = first == "status" || first == "set-level";
+    const bool headless = first == "status" || first == "set-level" ||
+                          first == "set-profile" || first == "set-power-cap";
 
     // `--screenshot out.png` renders the window offscreen and saves it, so the
     // README image can be regenerated without touching the desktop.
@@ -38,7 +39,7 @@ int main(int argc, char *argv[]) {
 
     QGuiApplication app(argc, argv);
     app.setApplicationName("tach");
-    app.setApplicationVersion("0.1.0");
+    app.setApplicationVersion("0.2.0");
 
     // Matches the window to tach.desktop, so the compositor (Wayland app_id)
     // and the launcher pick up the installed icon.
@@ -75,6 +76,7 @@ int main(int argc, char *argv[]) {
 
     QQmlApplicationEngine engine;
     QObject::connect(&translator, &Translator::changed, &engine, &QQmlEngine::retranslate);
+    engine.rootContext()->setContextProperty("app_version", app.applicationVersion());
     engine.rootContext()->setContextProperty("translator", &translator);
     engine.rootContext()->setContextProperty("theme", &theme);
     engine.rootContext()->setContextProperty("backend", &backend);
@@ -87,6 +89,11 @@ int main(int argc, char *argv[]) {
         const int delayIndex = args.indexOf("--delay");
         const int delay = delayIndex >= 0 ? qMax(500, args.value(delayIndex + 1).toInt()) : 1200;
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+
+        // `--tab 2` renders a specific tab for the documentation shots.
+        const int tabIndex = args.indexOf("--tab");
+        if (window && tabIndex >= 0 && tabIndex + 1 < args.size())
+            window->setProperty("tab", args.value(tabIndex + 1).toInt());
 
         // `--size 466x508` reproduces the size a tiling compositor hands out.
         const int sizeIndex = args.indexOf("--size");
