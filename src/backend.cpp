@@ -104,6 +104,30 @@ void Backend::discoverCard() {
     poll();
 }
 
+QString Backend::activePreset() const {
+    const bool atMax = m_powerCapMaxW > 0 && qAbs(m_powerCapW - m_powerCapMaxW) < 3;
+    const bool atMin = m_powerCapMinW > 0 && qAbs(m_powerCapW - m_powerCapMinW) < 3;
+    const bool atDefault = m_powerCapDefaultW > 0 && qAbs(m_powerCapW - m_powerCapDefaultW) < 3;
+
+    if (atMax && m_perfLevel == QLatin1String("high") &&
+        m_powerProfileName.contains(QLatin1String("3D")))
+        return "game";
+    if (atMin && m_powerProfileName.contains(QLatin1String("POWER_SAVING")))
+        return "quiet";
+    if (atDefault && m_powerProfileName.contains(QLatin1String("BOOTUP")))
+        return "balanced";
+    return {};
+}
+
+void Backend::applyPreset(const QString &name) {
+    if (name != QLatin1String("quiet") && name != QLatin1String("balanced") &&
+        name != QLatin1String("game")) {
+        setStatus(tr("Unknown preset: %1").arg(name));
+        return;
+    }
+    runPrivileged({"tach", "preset", name}, tr("Preset %1 applied").arg(name));
+}
+
 void Backend::selectCard(int index) {
     if (index < 0 || index >= m_cards.size())
         return;
@@ -641,6 +665,8 @@ void Backend::runPrivileged(const QStringList &arguments, const QString &success
                 if (code == 0 && status == QProcess::NormalExit) {
                     setStatus(successMessage);
                     poll();
+                    readFanConfig();
+                    refreshFanState();
                 } else if (code == 126) {
                     setStatus(tr("Permission denied"));
                 } else {

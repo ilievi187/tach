@@ -45,16 +45,16 @@ Flickable {
                 font.pixelSize: 11
             }
             Item { Layout.fillWidth: true }
-            Button {
+            Choice {
+                implicitWidth: 90
                 text: qsTr("VRAM")
-                flat: true
-                highlighted: root.sortMode === 0
+                selected: root.sortMode === 0
                 onClicked: root.sortMode = 0
             }
-            Button {
+            Choice {
+                implicitWidth: 110
                 text: qsTr("GPU time")
-                flat: true
-                highlighted: root.sortMode === 1
+                selected: root.sortMode === 1
                 onClicked: root.sortMode = 1
             }
         }

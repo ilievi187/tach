@@ -43,12 +43,20 @@ that is actually rendering.
 **Tuning** — three real controls, all through `pkexec`, so the password prompt is
 the desktop's own polkit agent and Tach never holds a password:
 
+**Presets** — Quiet, Balanced and Game each set the power limit, DPM level,
+power profile *and* fan curve in one privileged step, so nothing is left half
+applied. The active preset is matched from the live values, so the chip stays
+honest if something else changes the card.
+
 | Control | File | Why it is here |
 |---|---|---|
 | Performance level (auto/high/low) | `power_dpm_force_performance_level` | The simplest way to stop the card downclocking |
 | Power limit (slider) | `hwmon/*/power1_cap` | Quiet and cool vs. fast, without touching voltages |
 | Power profile | `pp_power_profile_mode` | 3D_FULL_SCREEN, VIDEO, POWER_SAVING, COMPUTE… |
-| Fan: automatic, fixed speed, or a 4-point curve | `hwmon/*/pwm1`, `pwm1_enable` | The difference between a 7900 XT and a hairdryer |
+| Fan: automatic, fixed speed, or a curve you drag | `hwmon/*/pwm1`, `pwm1_enable` | The difference between a 7900 XT and a hairdryer |
+
+The fan curve is edited as a graph: drag any of the four points, and a dashed
+line shows where the card is right now (*"80 °C → 60 %"*).
 
 **Fan control runs in `tach-fan.service`, not in the window.** The GUI only writes
 `/etc/tach/fan.json` and lets the service apply it, so closing Tach — or killing
@@ -109,6 +117,7 @@ tach set-level high         # DPM level
 tach set-profile 1          # power profile index
 tach set-power-cap 250      # watts, clamped to the driver's min/max
 tach fan-apply '{"mode":"curve","curve":[{"temp":50,"percent":0},…]}'
+tach preset quiet           # cap, level, profile and fan curve in one go
 tach fan-auto               # hand the fan back to the card
 tach ppd-takeover           # keep power-profiles-daemon off the DPM level
 ```

@@ -479,6 +479,101 @@ int fanAutoCommand() {
 // power-profiles-daemon writes the amdgpu DPM level from its own profile, which
 // fights the Performance level control. The override keeps it out of the way
 // without touching anything else the daemon does.
+// A preset is one privileged step that sets the power cap, the DPM level, the
+// power profile and the fan curve together, so "quiet" is a single click rather
+// than four settings that can be left half applied.
+int presetCommand(const QStringList &args) {
+    const QString name = args.value(1);
+    struct Preset {
+        QString level;
+        QString profile;
+        bool capMin, capMax;
+        QList<int> percents;
+    };
+    const QMap<QString, Preset> presets{
+        {"quiet", {"auto", "POWER_SAVING", true, false, {0, 20, 40, 70}}},
+        {"balanced", {"auto", "BOOTUP_DEFAULT", false, false, {0, 35, 60, 100}}},
+        {"game", {"high", "3D_FULL_SCREEN", false, true, {25, 50, 75, 100}}},
+    };
+    if (!presets.contains(name)) {
+        err() << "usage: tach preset <quiet|balanced|game>\n";
+        return 2;
+    }
+
+    Backend backend;
+    if (!backend.available()) {
+        err() << backend.error() << "\n";
+        return 1;
+    }
+    const Preset preset = presets.value(name);
+    const QString hwmon = hwmonFor(backend.cardPath());
+    int applied = 0;
+
+    if (!hwmon.isEmpty()) {
+        const double cap = preset.capMin ? backend.powerCapMinW()
+                          : preset.capMax ? backend.powerCapMaxW()
+                                          : backend.powerCapDefaultW();
+        if (cap > 0 && writeSysfs(hwmon + "/power1_cap",
+                                  QString::number(qRound64(cap * 1e6)), "preset"))
+            ++applied;
+    }
+
+    if (!backend.cardPath().isEmpty()) {
+        if (writeSysfs(backend.cardPath() + "/power_dpm_force_performance_level",
+                       preset.level, "preset"))
+            ++applied;
+
+        QFile table(backend.cardPath() + "/pp_power_profile_mode");
+        if (table.open(QIODevice::ReadOnly)) {
+            int active = -1;
+            const QVariantList profiles =
+                Backend::parsePowerProfiles(QString::fromUtf8(table.readAll()), &active);
+            table.close();
+            for (const auto &entry : profiles) {
+                const QVariantMap map = entry.toMap();
+                if (!map.value("name").toString().contains(preset.profile))
+                    continue;
+                QFile profileFile(table.fileName());
+                if (profileFile.open(QIODevice::WriteOnly)) {
+                    profileFile.write(QByteArray::number(map.value("index").toInt()));
+                    profileFile.close();
+                    ++applied;
+                }
+                break;
+            }
+        }
+    }
+
+    QJsonArray curve;
+    const QList<int> temps{50, 65, 80, 90};
+    for (int i = 0; i < temps.size(); ++i)
+        curve.append(QJsonObject{{"temp", temps.at(i)}, {"percent", preset.percents.value(i)}});
+    const QJsonObject fan{
+        {"mode", "curve"},
+        {"staticPercent", 50},
+        {"tempSource", "junction"},
+        {"curve", curve},
+    };
+    const QString path = Backend::fanConfigPath();
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QJsonDocument(fan).toJson(QJsonDocument::Indented));
+        file.close();
+        QProcess::execute("systemctl", {"enable", "tach-fan"});
+        QProcess::execute("systemctl", {"restart", "tach-fan"});
+        ++applied;
+    }
+
+    if (applied == 0) {
+        err() << "nothing could be applied\n";
+        return 1;
+    }
+    out() << name << " (" << applied << " settings)\n";
+    out().flush();
+    return 0;
+}
+
 int ppdCommand(bool restore) {
     const QString dir = "/etc/systemd/system/power-profiles-daemon.service.d";
     const QString override = dir + "/tach.conf";
@@ -538,6 +633,8 @@ int runCli(const QStringList &args) {
         return setPowerCapCommand(args);
     if (command == "log")
         return logCommand(args);
+    if (command == "preset")
+        return presetCommand(args);
     if (command == "fan-apply")
         return fanApplyCommand(args);
     if (command == "fan-auto")
@@ -550,7 +647,8 @@ int runCli(const QStringList &args) {
         return ppdCommand(true);
     err() << "usage: tach status [--json] | tach set-level <auto|high|low> | "
              "tach set-profile <index> | tach set-power-cap <watts> | "
-             "tach log [--seconds N] [--csv FILE] | tach fan-apply '<json>' | "
+             "tach log [--seconds N] [--csv FILE] | tach preset <quiet|balanced|game> | "
+             "tach fan-apply '<json>' | "
              "tach fan-auto | tach ppd-takeover | tach ppd-restore\n";
     return 2;
 }

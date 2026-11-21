@@ -27,6 +27,42 @@ Flickable {
 
         Panel {
             Layout.fillWidth: true
+            title: qsTr("Presets")
+            hint: backend.activePreset.length > 0 ? backend.activePreset : qsTr("custom")
+
+            Text {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                color: "#8b93a1"
+                font.pixelSize: 12
+                text: qsTr("One click sets the power limit, the DPM level, the power profile and the fan curve together, so nothing is left half applied.")
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Repeater {
+                    model: [
+                        { id: "quiet", label: qsTr("Quiet") },
+                        { id: "balanced", label: qsTr("Balanced") },
+                        { id: "game", label: qsTr("Game") }
+                    ]
+
+                    delegate: Choice {
+                        required property var modelData
+
+                        Layout.fillWidth: true
+                        selected: backend.activePreset === modelData.id
+                        text: modelData.label
+                        onClicked: backend.applyPreset(modelData.id)
+                    }
+                }
+            }
+        }
+
+        Panel {
+            Layout.fillWidth: true
             title: qsTr("Performance level")
             hint: backend.perfLevel
 
@@ -49,12 +85,11 @@ Flickable {
                         { level: "low", label: qsTr("Low") }
                     ]
 
-                    delegate: Button {
+                    delegate: Choice {
                         required property var modelData
 
                         Layout.fillWidth: true
-                        enabled: backend.canControl && !backend.busy
-                        highlighted: backend.perfLevel === modelData.level
+                        selected: backend.perfLevel === modelData.level
                         text: modelData.label
                         onClicked: backend.setPerformanceLevel(modelData.level)
                     }

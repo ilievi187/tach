@@ -61,6 +61,7 @@ class Backend : public QObject {
     Q_PROPERTY(QString overdriveHint READ overdriveHint NOTIFY cardChanged)
     Q_PROPERTY(QVariantMap overlayTools READ overlayTools NOTIFY cardChanged)
 
+    Q_PROPERTY(QString activePreset READ activePreset NOTIFY sampleChanged)
     Q_PROPERTY(QVariantList cards READ cards NOTIFY cardChanged)
     Q_PROPERTY(int cardIndex READ cardIndex NOTIFY cardChanged)
     Q_PROPERTY(QVariantMap sessionStats READ sessionStats NOTIFY sampleChanged)
@@ -123,6 +124,10 @@ public:
     QString overdriveHint() const;
     QVariantMap overlayTools() const { return m_overlayTools; }
 
+    // Matched from the live values, so the chip is honest even if something
+    // else changed the card behind our back.
+    QString activePreset() const;
+
     QVariantList cards() const { return m_cards; }
     int cardIndex() const { return m_cardIndex; }
     QVariantMap sessionStats() const { return m_sessionStats; }
@@ -163,6 +168,7 @@ public:
     // Fan control runs as a root service (tach-fan.service) so the fan never
     // stays pinned if the window closes or crashes: the GUI only writes a
     // config and lets the service apply it.
+    Q_INVOKABLE void applyPreset(const QString &name);
     Q_INVOKABLE void selectCard(int index);
     Q_INVOKABLE void startRecording();
     Q_INVOKABLE void stopRecording();

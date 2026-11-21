@@ -42,8 +42,8 @@ private:
         write(card + "/hwmon/hwmon3/fan1_max", "3600\n");
         write(card + "/hwmon/hwmon3/power1_cap", "305000000\n");
         write(card + "/hwmon/hwmon3/power1_cap_min", "200000000\n");
-        write(card + "/hwmon/hwmon3/power1_cap_max", "330000000\n");
-        write(card + "/hwmon/hwmon3/power1_cap_default", "330000000\n");
+        write(card + "/hwmon/hwmon3/power1_cap_max", "400000000\n");
+        write(card + "/hwmon/hwmon3/power1_cap_default", "305000000\n");
         write(card + "/pp_power_profile_mode",
               "PROFILE_INDEX(NAME) CLOCK_TYPE(NAME) FPS\n"
               " 0 BOOTUP_DEFAULT*:\n"
@@ -229,7 +229,7 @@ private slots:
         QVERIFY(backend.canPowerCap());
         QCOMPARE(backend.powerCapW(), 305.0);
         QCOMPARE(backend.powerCapMinW(), 200.0);
-        QCOMPARE(backend.powerCapMaxW(), 330.0);
+        QCOMPARE(backend.powerCapMaxW(), 400.0);
         QCOMPARE(backend.powerProfiles().size(), 2);
         QCOMPARE(backend.powerProfileIndex(), 0);
         QCOMPARE(backend.powerProfile(), QString("BOOTUP_DEFAULT"));
@@ -282,6 +282,46 @@ private slots:
         QCOMPARE(backend.cardName(), QString("Radeon 610M"));
         QCOMPARE(backend.utilisation(), 12.0);
         QCOMPARE(backend.coreClock(), 800);
+    }
+
+    void detectsTheActivePreset()
+    {
+        QTemporaryDir dir;
+        const QString card = fakeCard(dir.path());
+
+        // max cap + high + 3D is the game preset
+        write(card + "/hwmon/hwmon3/power1_cap", "400000000\n");
+        write(card + "/power_dpm_force_performance_level", "high\n");
+        write(card + "/pp_power_profile_mode",
+              " 0 BOOTUP_DEFAULT :\n 1 3D_FULL_SCREEN*:\n");
+        {
+            Backend backend(dir.path());
+            QCOMPARE(backend.activePreset(), QString("game"));
+        }
+
+        // min cap + power saving is the quiet preset
+        write(card + "/hwmon/hwmon3/power1_cap", "200000000\n");
+        write(card + "/power_dpm_force_performance_level", "auto\n");
+        write(card + "/pp_power_profile_mode", " 2 POWER_SAVING*:\n");
+        {
+            Backend backend(dir.path());
+            QCOMPARE(backend.activePreset(), QString("quiet"));
+        }
+
+        // default cap + bootup is balanced
+        write(card + "/hwmon/hwmon3/power1_cap", "305000000\n");
+        write(card + "/pp_power_profile_mode", " 0 BOOTUP_DEFAULT*:\n");
+        {
+            Backend backend(dir.path());
+            QCOMPARE(backend.activePreset(), QString("balanced"));
+        }
+
+        // anything else is not a preset
+        write(card + "/hwmon/hwmon3/power1_cap", "350000000\n");
+        {
+            Backend backend(dir.path());
+            QCOMPARE(backend.activePreset(), QString());
+        }
     }
 
     void themeFallsBack()

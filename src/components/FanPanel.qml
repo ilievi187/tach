@@ -7,27 +7,20 @@ Panel {
     id: panel
 
     property string mode: "auto"
-    property var temps: [50, 65, 80, 90]
-    property var percents: [0, 35, 60, 100]
+    property var points: [
+        { temp: 50, percent: 0 },
+        { temp: 65, percent: 35 },
+        { temp: 80, percent: 60 },
+        { temp: 90, percent: 100 }
+    ]
 
     title: qsTr("Fan")
     hint: backend.fanServiceActive ? qsTr("service active") : qsTr("service stopped")
 
     Component.onCompleted: {
         mode = backend.fanMode
-        const curve = backend.fanCurve
-        if (curve.length === 4) {
-            panel.percents = [
-                curve[0].percent, curve[1].percent, curve[2].percent, curve[3].percent
-            ]
-        }
-    }
-
-    function buildCurve() {
-        const out = []
-        for (let i = 0; i < panel.temps.length; i++)
-            out.push({ temp: panel.temps[i], percent: Math.round(panel.percents[i]) })
-        return out
+        if (backend.fanCurve.length >= 2)
+            panel.points = backend.fanCurve
     }
 
     Text {
@@ -49,11 +42,11 @@ Panel {
                 { id: "curve", label: qsTr("Curve") }
             ]
 
-            delegate: Button {
+            delegate: Choice {
                 required property var modelData
 
                 Layout.fillWidth: true
-                highlighted: panel.mode === modelData.id
+                selected: panel.mode === modelData.id
                 text: modelData.label
                 onClicked: panel.mode = modelData.id
             }
@@ -86,51 +79,13 @@ Panel {
     }
 
     // ---- curve ------------------------------------------------------
-    ColumnLayout {
+    CurveEditor {
         Layout.fillWidth: true
+        Layout.preferredHeight: 196
         visible: panel.mode === "curve"
-        spacing: 2
-
-        Repeater {
-            model: panel.temps
-
-            delegate: RowLayout {
-                id: curveRow
-                required property int index
-                required property var modelData
-
-                Layout.fillWidth: true
-                spacing: 12
-
-                Text {
-                    Layout.preferredWidth: 52
-                    text: curveRow.modelData + " °C"
-                    color: "#8b93a1"
-                    font.pixelSize: 12
-                }
-
-                Slider {
-                    Layout.fillWidth: true
-                    from: 0
-                    to: 100
-                    stepSize: 1
-                    value: panel.percents[curveRow.index]
-                    onMoved: {
-                        const next = panel.percents.slice()
-                        next[curveRow.index] = value
-                        panel.percents = next
-                    }
-                }
-
-                Text {
-                    Layout.preferredWidth: 48
-                    horizontalAlignment: Text.AlignRight
-                    text: Math.round(panel.percents[curveRow.index]) + " %"
-                    color: "#e8ebef"
-                    font.pixelSize: 13
-                }
-            }
-        }
+        points: panel.points
+        currentTemp: backend.junctionTemp
+        onEdited: function (updated) { panel.points = updated }
     }
 
     Text {
@@ -161,7 +116,7 @@ Panel {
         Button {
             text: qsTr("Apply")
             enabled: !backend.busy && panel.mode !== "auto"
-            onClicked: backend.applyFanConfig(panel.mode, Math.round(staticSlider.value), panel.buildCurve())
+            onClicked: backend.applyFanConfig(panel.mode, Math.round(staticSlider.value), panel.points)
         }
     }
 }
