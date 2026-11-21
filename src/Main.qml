@@ -338,7 +338,9 @@ ApplicationWindow {
                     Rectangle {
                         visible: backend.perfLevel.length > 0
                         radius: Math.min(5, theme.radius)
-                        color: theme.accent
+                        color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.12)
+                        border.width: 1
+                        border.color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.40)
                         Layout.alignment: Qt.AlignVCenter
                         implicitWidth: perfLabel.implicitWidth + 18
                         implicitHeight: 24
@@ -347,7 +349,7 @@ ApplicationWindow {
                             id: perfLabel
                             anchors.centerIn: parent
                             text: backend.perfLevel
-                            color: theme.accentForeground
+                            color: theme.accent
                             font.pixelSize: 11
                             font.bold: true
                         }

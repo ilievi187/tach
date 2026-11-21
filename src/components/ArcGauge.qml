@@ -46,7 +46,7 @@ Item {
                 ctx.arc(cx, cy, radius, start, end)
                 ctx.lineWidth = root.thickness * 2.6
                 ctx.strokeStyle = Qt.rgba(root.accentColor.r, root.accentColor.g,
-                                          root.accentColor.b, 0.13)
+                                          root.accentColor.b, 0.10)
                 ctx.stroke()
 
                 ctx.beginPath()

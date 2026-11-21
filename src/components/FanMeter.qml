@@ -50,7 +50,7 @@ ColumnLayout {
             anchors.verticalCenter: parent.verticalCenter
             radius: 6
             visible: root.lit > 0
-            color: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.16)
+            color: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.12)
         }
 
         Row {
