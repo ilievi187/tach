@@ -194,6 +194,61 @@ Flickable {
             }
         }
 
+        Panel {
+            Layout.fillWidth: true
+            title: qsTr("Statistics")
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 28
+
+                ColumnLayout {
+                    spacing: 2
+                    Text {
+                        text: qsTr("Last 60 s")
+                        color: "#5f6773"
+                        font.pixelSize: 11
+                    }
+                    Text {
+                        text: backend.windowStats.utilMax + " %  ·  "
+                              + backend.windowStats.tempMax + " °C  ·  "
+                              + backend.windowStats.powerMax + " W"
+                        color: "#e8ebef"
+                        font.pixelSize: 16
+                        font.bold: true
+                    }
+                }
+
+                ColumnLayout {
+                    spacing: 2
+                    Text {
+                        text: qsTr("Since start")
+                        color: "#5f6773"
+                        font.pixelSize: 11
+                    }
+                    Text {
+                        text: backend.sessionStats.utilMax + " %  ·  "
+                              + backend.sessionStats.tempMax + " °C  ·  "
+                              + backend.sessionStats.powerMax + " W"
+                        color: "#e8ebef"
+                        font.pixelSize: 16
+                        font.bold: true
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Text {
+                    Layout.alignment: Qt.AlignBottom
+                    text: backend.recording
+                          ? qsTr("recording · %1 s").arg(backend.recordedSeconds)
+                          : qsTr("%1 samples").arg(backend.sessionStats.samples)
+                    color: backend.recording ? "#ff6b8a" : "#5f6773"
+                    font.pixelSize: 11
+                }
+            }
+        }
+
         RowLayout {
             Layout.fillWidth: true
             spacing: 14

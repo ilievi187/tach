@@ -97,14 +97,28 @@ Flickable {
             Repeater {
                 model: root.rows()
 
-                delegate: ColumnLayout {
+                delegate: Item {
+                    id: processRow
                     required property var modelData
 
                     Layout.fillWidth: true
-                    spacing: 4
+                    implicitHeight: rowLayout.implicitHeight + 10
+
+                    HoverHandler { id: rowHover }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: Math.min(4, theme.radius)
+                        color: rowHover.hovered ? "#181b22" : "transparent"
+                    }
 
                     RowLayout {
-                        Layout.fillWidth: true
+                        id: rowLayout
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
                         spacing: 10
 
                         Text {
@@ -130,11 +144,6 @@ Flickable {
                         }
                     }
 
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 2
-                        color: "#151820"
-                    }
                 }
             }
 

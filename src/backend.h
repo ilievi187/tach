@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QFile>
 #include <QHash>
 #include <QObject>
 #include <QTimer>
@@ -60,6 +61,14 @@ class Backend : public QObject {
     Q_PROPERTY(QString overdriveHint READ overdriveHint NOTIFY cardChanged)
     Q_PROPERTY(QVariantMap overlayTools READ overlayTools NOTIFY cardChanged)
 
+    Q_PROPERTY(QVariantList cards READ cards NOTIFY cardChanged)
+    Q_PROPERTY(int cardIndex READ cardIndex NOTIFY cardChanged)
+    Q_PROPERTY(QVariantMap sessionStats READ sessionStats NOTIFY sampleChanged)
+    Q_PROPERTY(QVariantMap windowStats READ windowStats NOTIFY sampleChanged)
+    Q_PROPERTY(bool recording READ recording NOTIFY recordingChanged)
+    Q_PROPERTY(int recordedSeconds READ recordedSeconds NOTIFY recordingChanged)
+    Q_PROPERTY(QString recordingPath READ recordingPath NOTIFY recordingChanged)
+
     Q_PROPERTY(QString fanMode READ fanMode NOTIFY fanChanged)
     Q_PROPERTY(int fanPercent READ fanPercent NOTIFY fanChanged)
     Q_PROPERTY(QVariantList fanCurve READ fanCurve NOTIFY fanChanged)
@@ -114,6 +123,14 @@ public:
     QString overdriveHint() const;
     QVariantMap overlayTools() const { return m_overlayTools; }
 
+    QVariantList cards() const { return m_cards; }
+    int cardIndex() const { return m_cardIndex; }
+    QVariantMap sessionStats() const { return m_sessionStats; }
+    QVariantMap windowStats() const { return m_windowStats; }
+    bool recording() const { return m_recordFile.isOpen(); }
+    int recordedSeconds() const { return m_recordedSeconds; }
+    QString recordingPath() const { return m_recordPath; }
+
     QString fanMode() const { return m_fanMode; }
     int fanPercent() const { return m_fanPercent; }
     QVariantList fanCurve() const { return m_fanCurve; }
@@ -146,6 +163,10 @@ public:
     // Fan control runs as a root service (tach-fan.service) so the fan never
     // stays pinned if the window closes or crashes: the GUI only writes a
     // config and lets the service apply it.
+    Q_INVOKABLE void selectCard(int index);
+    Q_INVOKABLE void startRecording();
+    Q_INVOKABLE void stopRecording();
+
     Q_INVOKABLE void applyFanConfig(const QString &mode, int percent, const QVariantList &curve);
     Q_INVOKABLE void setFanAuto();
     Q_INVOKABLE void takeOverDpm();
@@ -154,6 +175,10 @@ public:
     static int curvePercentAt(const QVariantList &curve, int temperature);
     static QVariantList defaultFanCurve();
     static QString fanConfigPath();
+    static QString csvHeader();
+    static QString csvRow(qint64 epochMs, double util, double memUtil, double vramUsedGb,
+                          int edge, int junction, int memTemp, double power, int fanRpm,
+                          int coreClock, int memClock);
     QString hwmonPath() const;
 
     // --- parsing helpers, unit tested directly -------------------------
@@ -176,6 +201,7 @@ signals:
     void statusChanged();
     void errorChanged();
     void fanChanged();
+    void recordingChanged();
 
 private:
     void discoverCard();
@@ -185,6 +211,7 @@ private:
     void detectOverlayTools();
     void refreshFanState();
     void readFanConfig();
+    void updateStats();
     void runPrivileged(const QStringList &arguments, const QString &successMessage);
 
     QString readFile(const QString &path) const;
@@ -234,6 +261,23 @@ private:
     // per-process percentage between polls.
     QHash<int, qint64> m_engineTotals;
     qint64 m_engineStampNs = 0;
+
+    QVariantList m_cards;
+    int m_cardIndex = -1;
+    QVariantMap m_sessionStats;
+    QVariantMap m_windowStats;
+
+    QFile m_recordFile;
+    QString m_recordPath;
+    int m_recordedSeconds = 0;
+    qint64 m_recordStartedMs = 0;
+
+    // Running totals for the session figures.
+    double m_sumUtil = 0, m_sumPower = 0, m_sumTemp = 0;
+    int m_maxUtilTemp = 0;
+    double m_maxPower = 0;
+    int m_maxUtilisation = 0;
+    int m_statsSamples = 0;
 
     QString m_fanMode = "auto";
     int m_fanPercent = 50;

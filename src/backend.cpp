@@ -71,15 +71,25 @@ void Backend::discoverCard() {
     const auto entries = drm.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
     const QRegularExpression cardName("^card\\d+$");
 
+    m_cards.clear();
     QString best;
     qint64 bestVram = -1;
+
     for (const auto &entry : entries) {
         if (!cardName.match(entry).hasMatch())
             continue;
         const QString device = m_root + "/" + entry + "/device";
         if (readFile(device + "/vendor").trimmed() != QLatin1String("0x1002"))
             continue;
+
+        bool ok = false;
+        const quint32 id = readFile(device + "/device").trimmed().toUInt(&ok, 0);
         const qint64 vram = readFile(device + "/mem_info_vram_total").trimmed().toLongLong();
+        m_cards.append(QVariantMap{
+            {"name", ok ? cardNameForDeviceId(id) : tr("AMD GPU")},
+            {"path", device},
+            {"vramGb", vram / 1073741824.0},
+        });
         if (vram > bestVram) {
             bestVram = vram;
             best = device;
@@ -92,6 +102,32 @@ void Backend::discoverCard() {
     }
     setCardPath(best);
     poll();
+}
+
+void Backend::selectCard(int index) {
+    if (index < 0 || index >= m_cards.size())
+        return;
+    const QString path = m_cards.at(index).toMap().value("path").toString();
+    if (path.isEmpty() || path == m_card)
+        return;
+
+    // History belongs to the card that produced it.
+    m_utilHistory.clear();
+    m_tempHistory.clear();
+    m_powerHistory.clear();
+    m_processes.clear();
+    m_sessionStats.clear();
+    m_windowStats.clear();
+    m_sumUtil = m_sumPower = m_sumTemp = 0;
+    m_maxPower = 0;
+    m_maxUtilisation = 0;
+    m_maxUtilTemp = 0;
+    m_statsSamples = 0;
+
+    setCardPath(path);
+    poll();
+    emit processesChanged();
+    emit historyChanged();
 }
 
 void Backend::setCardPath(const QString &cardPath) {
@@ -129,6 +165,13 @@ void Backend::setCardPath(const QString &cardPath) {
     bool ok = false;
     const quint32 deviceId = readFile(cardPath + "/device").trimmed().toUInt(&ok, 0);
     m_cardName = ok ? cardNameForDeviceId(deviceId) : tr("AMD GPU");
+    m_cardIndex = -1;
+    for (int i = 0; i < m_cards.size(); ++i) {
+        if (m_cards.at(i).toMap().value("path").toString() == cardPath) {
+            m_cardIndex = i;
+            break;
+        }
+    }
     m_perfLevel = m_controlFile.isEmpty() ? QString() : readFile(m_controlFile).trimmed();
     m_error.clear();
 
@@ -331,6 +374,21 @@ void Backend::poll() {
     appendHistory(m_tempHistory, m_junctionTemp > 0 ? m_junctionTemp : m_edgeTemp);
     appendHistory(m_powerHistory, int(m_power));
 
+    updateStats();
+    if (m_recordFile.isOpen()) {
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        m_recordFile.write(csvRow(now, m_utilisation, m_memUtilisation, vramUsedGb(),
+                                  m_edgeTemp, m_junctionTemp, m_memTemp, m_power,
+                                  m_fanRpm, m_coreClock, m_memClock)
+                               .toUtf8());
+        m_recordFile.flush();
+        const int seconds = int((now - m_recordStartedMs) / 1000);
+        if (seconds != m_recordedSeconds) {
+            m_recordedSeconds = seconds;
+            emit recordingChanged();
+        }
+    }
+
     emit sampleChanged();
     emit historyChanged();
 
@@ -341,6 +399,108 @@ void Backend::poll() {
         refreshProcesses();
     if (m_ticks % 15 == 0)
         refreshFanState();
+}
+
+void Backend::updateStats() {
+    const int temp = m_junctionTemp > 0 ? m_junctionTemp : m_edgeTemp;
+    m_sumUtil += m_utilisation;
+    m_sumPower += m_power;
+    m_sumTemp += temp;
+    ++m_statsSamples;
+
+    m_maxUtilisation = qMax(m_maxUtilisation, int(m_utilisation));
+    m_maxUtilTemp = qMax(m_maxUtilTemp, temp);
+    m_maxPower = qMax(m_maxPower, m_power);
+
+    auto maxOf = [](const QVariantList &list) {
+        int value = 0;
+        for (const auto &entry : list)
+            value = qMax(value, entry.toInt());
+        return value;
+    };
+    auto avgOf = [](const QVariantList &list) {
+        if (list.isEmpty())
+            return 0.0;
+        double sum = 0;
+        for (const auto &entry : list)
+            sum += entry.toInt();
+        return sum / list.size();
+    };
+
+    m_windowStats = QVariantMap{
+        {"samples", m_utilHistory.size()},
+        {"utilMax", maxOf(m_utilHistory)},
+        {"utilAvg", avgOf(m_utilHistory)},
+        {"tempMax", maxOf(m_tempHistory)},
+        {"tempAvg", avgOf(m_tempHistory)},
+        {"powerMax", maxOf(m_powerHistory)},
+        {"powerAvg", avgOf(m_powerHistory)},
+    };
+
+    m_sessionStats = QVariantMap{
+        {"samples", m_statsSamples},
+        {"utilMax", m_maxUtilisation},
+        {"utilAvg", m_statsSamples > 0 ? m_sumUtil / m_statsSamples : 0.0},
+        {"tempMax", m_maxUtilTemp},
+        {"tempAvg", m_statsSamples > 0 ? m_sumTemp / m_statsSamples : 0.0},
+        {"powerMax", m_maxPower},
+        {"powerAvg", m_statsSamples > 0 ? m_sumPower / m_statsSamples : 0.0},
+    };
+}
+
+QString Backend::csvHeader() {
+    return QStringLiteral("timestamp,utilisation,mem_utilisation,vram_gb,edge_c,junction_c,"
+                          "mem_c,power_w,fan_rpm,core_mhz,mem_mhz\n");
+}
+
+QString Backend::csvRow(qint64 epochMs, double util, double memUtil, double vramUsedGb,
+                        int edge, int junction, int memTemp, double power, int fanRpm,
+                        int coreClock, int memClock) {
+    return QStringLiteral("%1,%2,%3,%4,%5,%6,%7,%8,%9,%10,%11\n")
+        .arg(QDateTime::fromMSecsSinceEpoch(epochMs).toString(Qt::ISODate))
+        .arg(util, 0, 'f', 1)
+        .arg(memUtil, 0, 'f', 1)
+        .arg(vramUsedGb, 0, 'f', 2)
+        .arg(edge)
+        .arg(junction)
+        .arg(memTemp)
+        .arg(power, 0, 'f', 1)
+        .arg(fanRpm)
+        .arg(coreClock)
+        .arg(memClock);
+}
+
+void Backend::startRecording() {
+    if (m_recordFile.isOpen())
+        return;
+
+    const QString directory = qEnvironmentVariable(
+        "TACH_STATE_DIR",
+        QStandardPaths::writableLocation(QStandardPaths::GenericStateLocation) + "/tach");
+    QDir().mkpath(directory);
+    m_recordPath = directory + "/session-"
+                 + QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss") + ".csv";
+
+    m_recordFile.setFileName(m_recordPath);
+    if (!m_recordFile.open(QIODevice::WriteOnly)) {
+        setStatus(tr("Could not start recording: %1").arg(m_recordFile.errorString()));
+        return;
+    }
+    m_recordFile.write(csvHeader().toUtf8());
+    m_recordFile.flush();
+    m_recordStartedMs = QDateTime::currentMSecsSinceEpoch();
+    m_recordedSeconds = 0;
+
+    setStatus(tr("Recording to %1").arg(m_recordPath));
+    emit recordingChanged();
+}
+
+void Backend::stopRecording() {
+    if (!m_recordFile.isOpen())
+        return;
+    m_recordFile.close();
+    setStatus(tr("Saved %1").arg(m_recordPath));
+    emit recordingChanged();
 }
 
 void Backend::appendHistory(QVariantList &list, int value) {

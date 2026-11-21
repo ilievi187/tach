@@ -234,6 +234,31 @@ ApplicationWindow {
 
                     Item { Layout.fillWidth: true }
 
+                    ComboBox {
+                        id: cardPicker
+
+                        visible: backend.cards.length > 1
+                        Layout.preferredWidth: 178
+                        Layout.alignment: Qt.AlignVCenter
+                        // "Radeon RX 7900 XT/XTX" is too long for a header control.
+                        model: backend.cards.map(function (card) {
+                            return card.name.replace("Radeon ", "").replace("RX ", "")
+                        })
+                        currentIndex: backend.cardIndex
+                        onActivated: function (index) { backend.selectCard(index) }
+                    }
+
+                    Button {
+                        Layout.alignment: Qt.AlignVCenter
+                        flat: !backend.recording
+                        highlighted: backend.recording
+                        text: backend.recording
+                              ? "■  " + Math.floor(backend.recordedSeconds / 60) + ":"
+                                + ("0" + (backend.recordedSeconds % 60)).slice(-2)
+                              : "●  " + qsTr("Rec")
+                        onClicked: backend.recording ? backend.stopRecording() : backend.startRecording()
+                    }
+
                     Rectangle {
                         visible: backend.perfLevel.length > 0
                         radius: Math.min(5, theme.radius)

@@ -237,6 +237,53 @@ private slots:
         QVERIFY(!backend.overdriveHint().isEmpty());
     }
 
+    void recordsASessionToCsv()
+    {
+        QTemporaryDir drm;
+        QTemporaryDir state;
+        fakeCard(drm.path());
+        qputenv("TACH_STATE_DIR", state.path().toUtf8());
+
+        Backend backend(drm.path());
+        backend.startRecording();
+        QVERIFY(backend.recording());
+        const QString path = backend.recordingPath();
+        backend.poll();
+        backend.poll();
+        backend.stopRecording();
+        QVERIFY(!backend.recording());
+
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const QString csv = QString::fromUtf8(file.readAll());
+        QVERIFY(csv.startsWith("timestamp,utilisation"));
+        QCOMPARE(csv.count('\n'), 3);   // header + two samples
+
+        qunsetenv("TACH_STATE_DIR");
+    }
+
+    void listsBothCardsAndSwitches()
+    {
+        QTemporaryDir dir;
+        fakeCard(dir.path());                        // card1, 20 GB, 68 %
+        write(dir.path() + "/card0/device/vendor", "0x1002\n");
+        write(dir.path() + "/card0/device/device", "0x164e\n");
+        write(dir.path() + "/card0/device/mem_info_vram_total", "536870912\n");
+        write(dir.path() + "/card0/device/gpu_busy_percent", "12\n");
+        write(dir.path() + "/card0/device/pp_dpm_sclk", "0: 800Mhz *\n");
+
+        Backend backend(dir.path());
+        QCOMPARE(backend.cards().size(), 2);
+        QCOMPARE(backend.cardIndex(), 1);            // the 20 GB card wins
+        QCOMPARE(backend.utilisation(), 68.0);
+
+        backend.selectCard(0);
+        QCOMPARE(backend.cardIndex(), 0);
+        QCOMPARE(backend.cardName(), QString("Radeon 610M"));
+        QCOMPARE(backend.utilisation(), 12.0);
+        QCOMPARE(backend.coreClock(), 800);
+    }
+
     void themeFallsBack()
     {
         QTemporaryDir dir;

@@ -15,7 +15,17 @@ root for anything you can only watch.
 
 **Overview** — a load ring, VRAM, junction / edge / memory temperatures, board
 power and its limit, a minute of history on one chart, plus core clock, memory
-clock, fan and PCIe link.
+clock, fan and PCIe link. Peaks for the last minute and since launch sit under
+the chart, so a spike you missed is still there in numbers.
+
+**Record** — the ● button in the header writes every sample to
+`~/.local/state/tach/session-<timestamp>.csv` (timestamp, utilisation, VRAM,
+three temperatures, power, fan, clocks). Stop it and the path lands in the status
+line. `tach log --seconds 30 --csv bench.csv` does the same headless, or prints
+JSON lines without `--csv` for scripts.
+
+**Multiple cards** — if the machine has an APU and a discrete Radeon, the header
+switches between them, and history resets with the card so the two never blend.
 
 <img src="docs/processes.png" width="410" alt="Processes tab"> <img src="docs/fan.png" width="410" alt="Tuning tab: performance level, fan curve, power limit, power profile">
 

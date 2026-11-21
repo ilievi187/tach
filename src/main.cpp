@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
         args << QString::fromLocal8Bit(argv[i]);
 
     const QString first = args.value(0);
-    const bool headless = first == "status" || first == "set-level" ||
+    const bool headless = first == "status" || first == "log" || first == "set-level" ||
                           first == "set-profile" || first == "set-power-cap" ||
                           first == "fan-apply" || first == "fan-auto" ||
                           first == "ppd-takeover" || first == "ppd-restore" ||
@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
 
     QGuiApplication app(argc, argv);
     app.setApplicationName("tach");
-    app.setApplicationVersion("0.3.0");
+    app.setApplicationVersion("0.4.0");
 
     // Matches the window to tach.desktop, so the compositor (Wayland app_id)
     // and the launcher pick up the installed icon.

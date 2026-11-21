@@ -1,5 +1,5 @@
 pkgname=tach
-pkgver=0.3.0
+pkgver=0.4.0
 pkgrel=1
 pkgdesc='AMD GPU panel for Omarchy: clocks, temperatures, VRAM and per-process use'
 arch=('x86_64')

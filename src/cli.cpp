@@ -332,6 +332,90 @@ int runFanService() {
     return 0;
 }
 
+// A headless sample log for benchmarks: one JSON object per line, or a CSV
+// file, driven without an event loop.
+int logCommand(const QStringList &args) {
+    int seconds = 10;
+    int interval = 1000;
+    QString csvPath;
+
+    for (int i = 1; i < args.size(); ++i) {
+        if (args.at(i) == "--seconds" && i + 1 < args.size())
+            seconds = args.at(++i).toInt();
+        else if (args.at(i) == "--interval" && i + 1 < args.size())
+            interval = qMax(100, args.at(++i).toInt());
+        else if (args.at(i) == "--csv" && i + 1 < args.size())
+            csvPath = args.at(++i);
+    }
+    if (seconds <= 0) {
+        err() << "--seconds must be positive\n";
+        return 2;
+    }
+
+    Backend backend;
+    if (!backend.available()) {
+        err() << backend.error() << "\n";
+        return 1;
+    }
+
+    QFile csv;
+    if (!csvPath.isEmpty()) {
+        csv.setFileName(csvPath);
+        if (!csv.open(QIODevice::WriteOnly)) {
+            err() << "cannot write " << csvPath << "\n";
+            return 1;
+        }
+        csv.write(Backend::csvHeader().toUtf8());
+    }
+
+    const int samples = qMax(1, seconds * 1000 / interval);
+    double sumPower = 0;
+    int maxTemp = 0;
+    for (int i = 0; i < samples; ++i) {
+        backend.poll();
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+
+        if (csv.isOpen()) {
+            csv.write(Backend::csvRow(now, backend.utilisation(), backend.memUtilisation(),
+                                      backend.vramUsedGb(), backend.edgeTemp(),
+                                      backend.junctionTemp(), backend.memTemp(), backend.power(),
+                                      backend.fanRpm(), backend.coreClock(), backend.memClock())
+                          .toUtf8());
+            csv.flush();
+        } else {
+            QJsonObject sample{
+                {"t", QDateTime::fromMSecsSinceEpoch(now).toString(Qt::ISODate)},
+                {"utilisation", backend.utilisation()},
+                {"vram_gb", backend.vramUsedGb()},
+                {"edge_c", backend.edgeTemp()},
+                {"junction_c", backend.junctionTemp()},
+                {"mem_c", backend.memTemp()},
+                {"power_w", backend.power()},
+                {"fan_rpm", backend.fanRpm()},
+                {"core_mhz", backend.coreClock()},
+                {"mem_mhz", backend.memClock()},
+            };
+            out() << QJsonDocument(sample).toJson(QJsonDocument::Compact) << "\n";
+            out().flush();
+        }
+
+        sumPower += backend.power();
+        maxTemp = qMax(maxTemp, backend.junctionTemp());
+
+        if (i + 1 < samples)
+            QThread::msleep(interval);
+    }
+    if (csv.isOpen()) {
+        csv.close();
+        out() << csvPath << "\n";
+        out().flush();
+    }
+
+    err() << "avg power " << QString::number(sumPower / samples, 'f', 1)
+          << " W, max junction " << maxTemp << " C\n";
+    return 0;
+}
+
 int fanApplyCommand(const QStringList &args) {
     const QString json = args.value(1);
     if (json.isEmpty()) {
@@ -452,6 +536,8 @@ int runCli(const QStringList &args) {
         return setProfileCommand(args);
     if (command == "set-power-cap")
         return setPowerCapCommand(args);
+    if (command == "log")
+        return logCommand(args);
     if (command == "fan-apply")
         return fanApplyCommand(args);
     if (command == "fan-auto")
@@ -464,6 +550,7 @@ int runCli(const QStringList &args) {
         return ppdCommand(true);
     err() << "usage: tach status [--json] | tach set-level <auto|high|low> | "
              "tach set-profile <index> | tach set-power-cap <watts> | "
-             "tach fan-apply '<json>' | tach fan-auto | tach ppd-takeover | tach ppd-restore\n";
+             "tach log [--seconds N] [--csv FILE] | tach fan-apply '<json>' | "
+             "tach fan-auto | tach ppd-takeover | tach ppd-restore\n";
     return 2;
 }
