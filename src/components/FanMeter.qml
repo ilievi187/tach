@@ -41,18 +41,6 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.preferredHeight: 12
 
-        // One halo behind the lit part instead of per-segment shadows, which
-        // would smear into a grey band at this size.
-        Rectangle {
-            x: -3
-            width: Math.max(0, root.width * root.fraction + 6)
-            height: parent.height + 4
-            anchors.verticalCenter: parent.verticalCenter
-            radius: 6
-            visible: root.lit > 0
-            color: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.12)
-        }
-
         Row {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 3

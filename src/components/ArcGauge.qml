@@ -9,7 +9,7 @@ Item {
     property string unit: "%"
     property color accentColor: theme.accent
     property color trackColor: "#1b1e26"
-    property int thickness: 11
+    property int thickness: 8
 
     onValueChanged: gauge.requestPaint()
     onAccentColorChanged: gauge.requestPaint()
@@ -39,18 +39,8 @@ Item {
             ctx.stroke()
 
             if (clamped > 0) {
-                const end = start + sweep * clamped / 100
-                // A wider, fainter stroke behind the arc reads as a glow without
-                // pulling in a shader effect for one shape.
                 ctx.beginPath()
-                ctx.arc(cx, cy, radius, start, end)
-                ctx.lineWidth = root.thickness * 2.6
-                ctx.strokeStyle = Qt.rgba(root.accentColor.r, root.accentColor.g,
-                                          root.accentColor.b, 0.10)
-                ctx.stroke()
-
-                ctx.beginPath()
-                ctx.arc(cx, cy, radius, start, end)
+                ctx.arc(cx, cy, radius, start, start + sweep * clamped / 100)
                 ctx.lineWidth = root.thickness
                 ctx.strokeStyle = root.accentColor
                 ctx.stroke()
