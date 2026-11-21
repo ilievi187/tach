@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
     QCoreApplication::setOrganizationName("tach");
     app.setApplicationName("tach");
-    app.setApplicationVersion("0.8.0");
+    app.setApplicationVersion("0.9.0");
 
     // Matches the window to tach.desktop, so the compositor (Wayland app_id)
     // and the launcher pick up the installed icon.

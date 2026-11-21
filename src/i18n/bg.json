@@ -139,6 +139,7 @@
   "Writes a preset into MangoHud's config, inside a marked block that Tach owns. Your own lines are kept, and the old file is backed up first.": "Записва пресет в конфигурацията на MangoHud, в маркиран блок, който Tach управлява. Вашите редове се запазват, а старият файл се копира преди това.",
   "Wrote the %1 MangoHud preset to %2": "Пресетът %1 за MangoHud е записан в %2",
   "Wrote the %1 vkBasalt preset to %2": "Пресетът %1 за vkBasalt е записан в %2",
+  "at power limit": "на лимита на мощността",
   "available": "налично",
   "board draw": "консумация на платката",
   "checked at startup": "проверено при стартиране",

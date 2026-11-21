@@ -15,8 +15,10 @@ root for anything you can only watch.
 
 **Overview** — a load ring, VRAM, junction / edge / memory temperatures, board
 power and its limit, a minute of history on one chart, plus core clock, memory
-clock, fan and PCIe link. Peaks for the last minute and since launch sit under
-the chart, so a spike you missed is still there in numbers.
+clock, fan and PCIe link. Hover the chart for the exact values at any second
+(*"93 % · 72 °C · 254 W"*), and peaks for the last minute and since launch sit
+underneath, so a spike you missed is still there in numbers. A chip in the
+header says when the card is drawing its power cap.
 
 **Record** — the ● button in the header writes every sample to
 `~/.local/state/tach/session-<timestamp>.csv` (timestamp, utilisation, VRAM,

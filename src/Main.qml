@@ -351,6 +351,29 @@ ApplicationWindow {
                     }
 
                     Rectangle {
+                        // Honest-ish: the card is drawing its ceiling, not
+                        // "throttling" in some mysterious way.
+                        visible: backend.powerCapW > 0 && backend.power >= backend.powerCapW * 0.97
+                                 && backend.utilisation > 80
+                        radius: Math.min(5, theme.radius)
+                        color: "transparent"
+                        border.width: 1
+                        border.color: theme.warn
+                        Layout.alignment: Qt.AlignVCenter
+                        implicitWidth: limitLabel.implicitWidth + 18
+                        implicitHeight: 24
+
+                        Text {
+                            id: limitLabel
+                            anchors.centerIn: parent
+                            text: qsTr("at power limit")
+                            color: theme.warn
+                            font.pixelSize: 11
+                            font.bold: true
+                        }
+                    }
+
+                    Rectangle {
                         visible: backend.perfLevel.length > 0
                         radius: Math.min(5, theme.radius)
                         color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.12)
