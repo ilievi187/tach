@@ -27,6 +27,11 @@ JSON lines without `--csv` for scripts.
 **Multiple cards** — if the machine has an APU and a discrete Radeon, the header
 switches between them, and history resets with the card so the two never blend.
 
+**Language** — the app follows Omarchy's language (Setup → Language), and the
+`AUTO · BG · EN` chips at the bottom of the sidebar override it per-app when you
+want to read it in the other language without changing the desktop. The choice
+is remembered in `~/.config/tach/tach.conf`; `AUTO` hands it back to Omarchy.
+
 <img src="docs/processes.png" width="410" alt="Processes tab"> <img src="docs/fan.png" width="410" alt="Tuning tab: performance level, fan curve, power limit, power profile">
 
 **Processes** — every process holding VRAM, with its share of GPU time. Sort by

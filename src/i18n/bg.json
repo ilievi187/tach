@@ -132,6 +132,7 @@
   "now %1 W": "сега %1 W",
   "now %1 rpm": "сега %1 об/мин",
   "of %1 GB": "от %1 ГБ",
+  "of %1 rpm": "от %1 об/мин",
   "off": "изкл.",
   "override active": "override е активен",
   "override not installed": "override не е инсталиран",

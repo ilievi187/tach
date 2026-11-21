@@ -3,6 +3,7 @@
         <file alias="Main.qml">Main.qml</file>
         <file alias="components/ArcGauge.qml">components/ArcGauge.qml</file>
         <file alias="components/Chart.qml">components/Chart.qml</file>
+        <file alias="components/FanMeter.qml">components/FanMeter.qml</file>
         <file alias="components/FanPanel.qml">components/FanPanel.qml</file>
         <file alias="components/LegendDot.qml">components/LegendDot.qml</file>
         <file alias="components/OverlaysTab.qml">components/OverlaysTab.qml</file>

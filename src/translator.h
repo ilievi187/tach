@@ -14,6 +14,7 @@
 class Translator : public QTranslator {
     Q_OBJECT
     Q_PROPERTY(QString language READ language NOTIFY changed)
+    Q_PROPERTY(bool followingSystem READ followingSystem NOTIFY changed)
 
 public:
     explicit Translator(const QString &languageFile = {}, const QString &catalogDirectory = ":/i18n",
@@ -23,6 +24,13 @@ public:
     bool isEmpty() const override { return m_strings.isEmpty(); }
     QString translate(const char *context, const char *sourceText, const char *disambiguation = nullptr,
                       int n = -1) const override;
+
+    // An explicit choice from the app's own UI wins over Omarchy's language
+    // file until the user asks to follow the desktop again.
+    Q_INVOKABLE void setLanguage(const QString &code);
+    Q_INVOKABLE void followSystem();
+
+    bool followingSystem() const { return m_override.isEmpty(); }
 
     static QString readLanguage(const QString &path);
     static QString pluralCategory(const QString &language, long long count);
@@ -37,6 +45,7 @@ private:
     QString m_languageFile;
     QString m_catalogDirectory;
     QString m_language;
+    QString m_override;
     QHash<QString, QJsonValue> m_strings;
     QFileSystemWatcher m_watcher;
     QTimer m_debounce;

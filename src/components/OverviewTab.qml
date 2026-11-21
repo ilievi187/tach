@@ -276,16 +276,10 @@ Flickable {
             Panel {
                 Layout.fillWidth: true
                 title: qsTr("Fan")
-                Text {
-                    text: backend.fanRpm > 0 ? backend.fanRpm + " rpm" : qsTr("off")
-                    color: "#e8ebef"
-                    font.pixelSize: 20
-                    font.bold: true
-                }
-                Text {
-                    text: qsTr("max %1 rpm").arg(backend.fanMax)
-                    color: "#5f6773"
-                    font.pixelSize: 11
+                FanMeter {
+                    Layout.fillWidth: true
+                    rpm: backend.fanRpm
+                    maximum: backend.fanMax > 0 ? backend.fanMax : 3600
                 }
             }
             Panel {

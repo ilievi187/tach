@@ -8,11 +8,16 @@
 #include <QJsonObject>
 #include <QLocale>
 #include <QRegularExpression>
+#include <QSettings>
 
 Translator::Translator(const QString &languageFile, const QString &catalogDirectory, QObject *parent)
     : QTranslator(parent),
       m_languageFile(languageFile.isEmpty() ? QDir::homePath() + "/.config/omarchy/language" : languageFile),
       m_catalogDirectory(catalogDirectory) {
+    // Tests pass an explicit language file; only the real app reads the
+    // saved preference.
+    if (languageFile.isEmpty())
+        m_override = QSettings().value("ui/language").toString();
     m_debounce.setSingleShot(true);
     m_debounce.setInterval(80);
     connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, [this] { m_debounce.start(); });
@@ -92,6 +97,22 @@ QString Translator::translate(const char *, const char *sourceText, const char *
     return {};
 }
 
+void Translator::setLanguage(const QString &code) {
+    if (code.isEmpty())
+        return;
+    m_override = code;
+    QSettings().setValue("ui/language", code);
+    m_language.clear();   // force a reload even if the code did not change
+    reload();
+}
+
+void Translator::followSystem() {
+    m_override.clear();
+    QSettings().remove("ui/language");
+    m_language.clear();
+    reload();
+}
+
 void Translator::reload() {
     const auto paths = m_watcher.files() + m_watcher.directories();
     if (!paths.isEmpty())
@@ -106,7 +127,7 @@ void Translator::reload() {
         m_watcher.addPath(m_languageFile);
 
     // Catalogs are compiled in, so only a different language needs a reload.
-    const QString language = readLanguage(m_languageFile);
+    const QString language = m_override.isEmpty() ? readLanguage(m_languageFile) : m_override;
     if (language == m_language)
         return;
 

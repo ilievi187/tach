@@ -39,8 +39,19 @@ Item {
             ctx.stroke()
 
             if (clamped > 0) {
+                const end = start + sweep * clamped / 100
+                // A wider, fainter stroke behind the arc reads as a glow without
+                // pulling in a shader effect for one shape.
                 ctx.beginPath()
-                ctx.arc(cx, cy, radius, start, start + sweep * clamped / 100)
+                ctx.arc(cx, cy, radius, start, end)
+                ctx.lineWidth = root.thickness * 2.6
+                ctx.strokeStyle = Qt.rgba(root.accentColor.r, root.accentColor.g,
+                                          root.accentColor.b, 0.13)
+                ctx.stroke()
+
+                ctx.beginPath()
+                ctx.arc(cx, cy, radius, start, end)
+                ctx.lineWidth = root.thickness
                 ctx.strokeStyle = root.accentColor
                 ctx.stroke()
             }

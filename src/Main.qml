@@ -62,6 +62,17 @@ ApplicationWindow {
     Item {
         anchors.fill: parent
         LayoutMirroring.enabled: Qt.application.layoutDirection === Qt.RightToLeft
+
+        // A very slight vertical gradient keeps the flat panels from looking
+        // pasted onto a single colour.
+        Rectangle {
+            anchors.fill: parent
+            z: -2
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: "#0c0d13" }
+                GradientStop { position: 1.0; color: "#08090c" }
+            }
+        }
         LayoutMirroring.childrenInherit: true
 
         ColumnLayout {
@@ -160,6 +171,44 @@ ApplicationWindow {
 
                     Item { Layout.fillHeight: true }
 
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.bottomMargin: 4
+                        visible: !win.compact
+                        spacing: 10
+
+                        Repeater {
+                            model: [
+                                { code: "auto", label: "AUTO" },
+                                { code: "bg", label: "BG" },
+                                { code: "en", label: "EN" }
+                            ]
+
+                            delegate: Text {
+                                required property var modelData
+
+                                readonly property bool active: modelData.code === "auto"
+                                    ? translator.followingSystem
+                                    : (!translator.followingSystem && translator.language === modelData.code)
+
+                                text: modelData.label
+                                color: active ? theme.accent : "#4b515c"
+                                font.pixelSize: 10
+                                font.bold: active
+                                font.letterSpacing: 0.8
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    anchors.margins: -4
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: modelData.code === "auto"
+                                               ? translator.followSystem()
+                                               : translator.setLanguage(modelData.code)
+                                }
+                            }
+                        }
+                    }
+
                     Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 24
@@ -249,14 +298,41 @@ ApplicationWindow {
                     }
 
                     Button {
+                        id: recordButton
+
                         Layout.alignment: Qt.AlignVCenter
                         flat: !backend.recording
                         highlighted: backend.recording
-                        text: backend.recording
-                              ? "■  " + Math.floor(backend.recordedSeconds / 60) + ":"
-                                + ("0" + (backend.recordedSeconds % 60)).slice(-2)
-                              : "●  " + qsTr("Rec")
                         onClicked: backend.recording ? backend.stopRecording() : backend.startRecording()
+
+                        contentItem: RowLayout {
+                            spacing: 8
+
+                            Rectangle {
+                                width: 8
+                                height: 8
+                                radius: 4
+                                color: "#ff6b8a"
+
+                                SequentialAnimation on opacity {
+                                    running: backend.recording
+                                    loops: Animation.Infinite
+                                    NumberAnimation { to: 0.3; duration: 700; easing.type: Easing.InOutQuad }
+                                    NumberAnimation { to: 1.0; duration: 700; easing.type: Easing.InOutQuad }
+                                }
+                                onOpacityChanged: if (!backend.recording) opacity = 1
+                            }
+
+                            Text {
+                                text: backend.recording
+                                      ? Math.floor(backend.recordedSeconds / 60) + ":"
+                                        + ("0" + (backend.recordedSeconds % 60)).slice(-2)
+                                      : qsTr("Rec")
+                                color: backend.recording ? theme.accentForeground : "#e8ebef"
+                                font.pixelSize: 13
+                                font.bold: backend.recording
+                            }
+                        }
                     }
 
                     Rectangle {
