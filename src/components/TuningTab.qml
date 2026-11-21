@@ -27,6 +27,8 @@ Flickable {
 
         Panel {
             Layout.fillWidth: true
+            Layout.columnSpan: content.columns
+            Layout.alignment: Qt.AlignTop
             title: qsTr("Presets")
             hint: backend.activePreset.length > 0 ? backend.activePreset : qsTr("custom")
 
@@ -35,7 +37,7 @@ Flickable {
                 wrapMode: Text.WordWrap
                 color: "#8b93a1"
                 font.pixelSize: 12
-                text: qsTr("One click sets the power limit, the DPM level, the power profile and the fan curve together, so nothing is left half applied.")
+                text: qsTr("A preset is a shortcut for the controls below: one click sets the power limit, the DPM level, the power profile and the fan curve together. Change any of them by hand and the chip goes back to custom.")
             }
 
             RowLayout {
@@ -61,8 +63,14 @@ Flickable {
             }
         }
 
+        SectionLabel {
+            Layout.columnSpan: content.columns
+            text: qsTr("Fine tuning")
+        }
+
         Panel {
             Layout.fillWidth: true
+            Layout.alignment: Qt.AlignTop
             title: qsTr("Performance level")
             hint: backend.perfLevel
 
@@ -97,12 +105,42 @@ Flickable {
             }
         }
 
-        FanPanel {
+        Panel {
             Layout.fillWidth: true
+            visible: backend.powerDaemonActive
+            title: qsTr("DPM ownership")
+            hint: backend.dpmManagedByTach ? qsTr("Tach manages it") : qsTr("shared")
+
+            Text {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                color: "#8b93a1"
+                font.pixelSize: 12
+                text: backend.dpmManagedByTach
+                      ? qsTr("power-profiles-daemon no longer touches the amdgpu DPM level, so the performance level above stays where you put it.")
+                      : qsTr("power-profiles-daemon is running and may overwrite the performance level with its own profile. Let Tach own the DPM level, or expect the two to fight.")
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Text {
+                    Layout.fillWidth: true
+                    text: backend.dpmManagedByTach ? qsTr("override active") : qsTr("override not installed")
+                    color: "#5f6773"
+                    font.pixelSize: 11
+                }
+                Button {
+                    text: backend.dpmManagedByTach ? qsTr("Give it back") : qsTr("Let Tach manage it")
+                    enabled: !backend.busy
+                    onClicked: backend.dpmManagedByTach ? backend.restoreDpm() : backend.takeOverDpm()
+                }
+            }
         }
 
         Panel {
             Layout.fillWidth: true
+            Layout.alignment: Qt.AlignTop
             title: qsTr("Power limit")
             hint: backend.powerCapW > 0 ? qsTr("now %1 W").arg(Fmt.amount(backend.powerCapW, 0)) : ""
 
@@ -183,6 +221,7 @@ Flickable {
 
         Panel {
             Layout.fillWidth: true
+            Layout.alignment: Qt.AlignTop
             title: qsTr("Power profile")
             hint: backend.powerProfile
 
@@ -222,41 +261,21 @@ Flickable {
             }
         }
 
-        Panel {
+        SectionLabel {
+            Layout.columnSpan: content.columns
+            text: qsTr("Fan")
+        }
+
+        FanPanel {
             Layout.fillWidth: true
-            visible: backend.powerDaemonActive
-            title: qsTr("DPM ownership")
-            hint: backend.dpmManagedByTach ? qsTr("Tach manages it") : qsTr("shared")
-
-            Text {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                color: "#8b93a1"
-                font.pixelSize: 12
-                text: backend.dpmManagedByTach
-                      ? qsTr("power-profiles-daemon no longer touches the amdgpu DPM level, so the performance level above stays where you put it.")
-                      : qsTr("power-profiles-daemon is running and may overwrite the performance level with its own profile. Let Tach own the DPM level, or expect the two to fight.")
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-
-                Text {
-                    Layout.fillWidth: true
-                    text: backend.dpmManagedByTach ? qsTr("override active") : qsTr("override not installed")
-                    color: "#5f6773"
-                    font.pixelSize: 11
-                }
-                Button {
-                    text: backend.dpmManagedByTach ? qsTr("Give it back") : qsTr("Let Tach manage it")
-                    enabled: !backend.busy
-                    onClicked: backend.dpmManagedByTach ? backend.restoreDpm() : backend.takeOverDpm()
-                }
-            }
+            Layout.columnSpan: content.columns
+            title: ""
         }
 
         Panel {
             Layout.fillWidth: true
+            Layout.columnSpan: content.columns
+            Layout.alignment: Qt.AlignTop
             title: qsTr("Overdrive")
             hint: backend.canOverdrive ? qsTr("available") : qsTr("locked by the kernel")
 
