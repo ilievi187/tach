@@ -14,7 +14,7 @@ RowLayout {
 
     Text {
         text: root.text
-        color: "#5f6773"
+        color: theme.faintText
         font.pixelSize: 10
         font.letterSpacing: 1.2
         font.capitalization: Font.AllUppercase
@@ -23,6 +23,6 @@ RowLayout {
     Rectangle {
         Layout.fillWidth: true
         height: 1
-        color: "#1d2028"
+        color: theme.border
     }
 }

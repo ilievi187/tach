@@ -10,8 +10,8 @@ Canvas {
     property var temperature: []
     property var power: []
     property color utilisationColor: theme.accent
-    property color temperatureColor: "#ff8f6b"
-    property color powerColor: "#7aa2ff"
+    property color temperatureColor: theme.warn
+    property color powerColor: theme.info
     property int capacity: 60
 
     readonly property int points: Math.max(utilisation.length, temperature.length, power.length)
@@ -19,6 +19,10 @@ Canvas {
     onUtilisationChanged: requestPaint()
     onTemperatureChanged: requestPaint()
     onPowerChanged: requestPaint()
+    // A theme switch changes the colours without touching the data.
+    onUtilisationColorChanged: requestPaint()
+    onTemperatureColorChanged: requestPaint()
+    onPowerColorChanged: requestPaint()
     onCapacityChanged: requestPaint()
     onWidthChanged: requestPaint()
     onHeightChanged: requestPaint()
@@ -49,7 +53,7 @@ Canvas {
 
         // Horizontal guides at 25/50/75 % of the height, so movement has a
         // reference without drawing axes nobody reads.
-        ctx.strokeStyle = "#1b1e26"
+        ctx.strokeStyle = theme.track
         ctx.lineWidth = 1
         for (let i = 1; i < 4; i++) {
             const y = height * i / 4

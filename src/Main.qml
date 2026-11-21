@@ -13,9 +13,9 @@ ApplicationWindow {
     minimumHeight: 420
     visible: true
     title: qsTr("Tach — AMD GPU")
-    color: "#0a0b0e"
+    color: theme.background
 
-    Material.theme: Material.Dark
+    Material.theme: theme.isLight ? Material.Light : Material.Dark
     Material.accent: theme.accent
     Material.roundedScale: theme.radius
 
@@ -69,8 +69,8 @@ ApplicationWindow {
             anchors.fill: parent
             z: -2
             gradient: Gradient {
-                GradientStop { position: 0.0; color: "#0c0d13" }
-                GradientStop { position: 1.0; color: "#08090c" }
+                GradientStop { position: 0.0; color: theme.background }
+                GradientStop { position: 1.0; color: theme.rail }
             }
         }
         LayoutMirroring.childrenInherit: true
@@ -83,7 +83,7 @@ ApplicationWindow {
 
             Text {
                 text: qsTr("No AMD GPU found")
-                color: "#f2f4f7"
+                color: theme.foreground
                 font.pixelSize: 22
                 font.bold: true
                 Layout.alignment: Qt.AlignHCenter
@@ -91,7 +91,7 @@ ApplicationWindow {
             Text {
                 text: backend.error.length > 0 ? backend.error
                                                : qsTr("Tach reads /sys/class/drm. This machine has no AMD card, or the driver is not amdgpu.")
-                color: "#8b93a1"
+                color: theme.mutedText
                 font.pixelSize: 14
                 wrapMode: Text.WordWrap
                 horizontalAlignment: Text.AlignHCenter
@@ -108,7 +108,7 @@ ApplicationWindow {
             Rectangle {
                 Layout.preferredWidth: win.compact ? 76 : 188
                 Layout.fillHeight: true
-                color: "#0d0e12"
+                color: theme.rail
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -134,16 +134,25 @@ ApplicationWindow {
                         ]
 
                         delegate: Item {
+                            id: navItem
+
                             required property var modelData
                             required property int index
 
                             Layout.fillWidth: true
                             Layout.preferredHeight: 40
 
+                            HoverHandler { id: navHover }
+
                             Rectangle {
                                 anchors.fill: parent
                                 radius: Math.min(6, theme.radius)
-                                color: win.tab === index ? "#181b22" : "transparent"
+                                color: win.tab === index ? theme.panelAlt
+                                                         : (navHover.hovered ? theme.hover : "transparent")
+
+                                Behavior on color {
+                                    ColorAnimation { duration: 120 }
+                                }
                             }
                             Rectangle {
                                 width: 3
@@ -157,7 +166,7 @@ ApplicationWindow {
                                 anchors.leftMargin: 16
                                 verticalAlignment: Text.AlignVCenter
                                 text: win.compact ? modelData.short : modelData.label
-                                color: win.tab === index ? "#f2f4f7" : "#8b93a1"
+                                color: win.tab === index ? theme.foreground : theme.mutedText
                                 font.pixelSize: 14
                                 font.bold: win.tab === index
                             }
@@ -192,7 +201,7 @@ ApplicationWindow {
                                     : (!translator.followingSystem && translator.language === modelData.code)
 
                                 text: modelData.label
-                                color: active ? theme.accent : "#4b515c"
+                                color: active ? theme.accent : theme.faintText
                                 font.pixelSize: 10
                                 font.bold: active
                                 font.letterSpacing: 0.8
@@ -221,14 +230,14 @@ ApplicationWindow {
 
                             Text {
                                 text: "♥"
-                                color: "#ff6b8a"
+                                color: theme.danger
                                 font.pixelSize: 12
                             }
                             Text {
                                 Layout.fillWidth: true
                                 visible: !win.compact
                                 text: qsTr("Buy me a coffee")
-                                color: "#5f6773"
+                                color: theme.faintText
                                 font.pixelSize: 11
                                 elide: Text.ElideRight
                             }
@@ -245,7 +254,7 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         visible: !win.compact
                         text: qsTr("v%1").arg(app_version)
-                        color: "#3f444e"
+                        color: theme.faintText
                         font.pixelSize: 11
                     }
                 }
@@ -266,7 +275,7 @@ ApplicationWindow {
                         spacing: 0
                         Text {
                             text: qsTr("AMD GPU")
-                            color: "#5f6773"
+                            color: theme.faintText
                             font.pixelSize: 10
                             font.letterSpacing: 1.3
                             font.capitalization: Font.AllUppercase
@@ -274,7 +283,7 @@ ApplicationWindow {
                         Text {
                             Layout.fillWidth: true
                             text: backend.cardName
-                            color: "#f2f4f7"
+                            color: theme.foreground
                             font.pixelSize: win.compact ? 18 : 24
                             font.bold: true
                             elide: Text.ElideRight
@@ -312,7 +321,7 @@ ApplicationWindow {
                                 width: 8
                                 height: 8
                                 radius: 4
-                                color: "#ff6b8a"
+                                color: theme.danger
 
                                 SequentialAnimation on opacity {
                                     running: backend.recording
@@ -328,7 +337,7 @@ ApplicationWindow {
                                       ? Math.floor(backend.recordedSeconds / 60) + ":"
                                         + ("0" + (backend.recordedSeconds % 60)).slice(-2)
                                       : qsTr("Rec")
-                                color: backend.recording ? theme.accentForeground : "#e8ebef"
+                                color: backend.recording ? theme.accentForeground : theme.foreground
                                 font.pixelSize: 13
                                 font.bold: backend.recording
                             }
@@ -371,7 +380,7 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     text: backend.status.length > 0 ? backend.status
                                                     : qsTr("R refresh · 1-4 tabs · ? keys · Q quit")
-                    color: backend.busy ? theme.accent : "#4b515c"
+                    color: backend.busy ? theme.accent : theme.faintText
                     font.pixelSize: 11
                     elide: Text.ElideRight
                 }
@@ -394,9 +403,9 @@ ApplicationWindow {
                 width: Math.min(win.width - 60, 440)
                 height: keys.implicitHeight + 40
                 radius: theme.radius
-                color: "#12141a"
+                color: theme.panel
                 border.width: 1
-                border.color: "#242832"
+                border.color: theme.border
 
                 Column {
                     id: keys
@@ -406,7 +415,7 @@ ApplicationWindow {
 
                     Text {
                         text: qsTr("Keys")
-                        color: "#f2f4f7"
+                        color: theme.foreground
                         font.pixelSize: 18
                         font.bold: true
                     }
@@ -435,7 +444,7 @@ ApplicationWindow {
                             Text {
                                 width: keys.width - 106
                                 text: modelData.action
-                                color: "#d7dbe1"
+                                color: theme.foreground
                                 font.pixelSize: 13
                                 wrapMode: Text.WordWrap
                             }

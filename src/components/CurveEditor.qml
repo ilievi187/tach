@@ -51,6 +51,7 @@ Item {
     }
 
     onPointsChanged: canvas.requestPaint()
+    onAccentColorChanged: canvas.requestPaint()
     onCurrentTempChanged: canvas.requestPaint()
     onWidthChanged: canvas.requestPaint()
     onHeightChanged: canvas.requestPaint()
@@ -69,14 +70,14 @@ Item {
             const w = root.plotWidth(), h = root.plotHeight()
 
             // plot background
-            ctx.fillStyle = "#0f1116"
+            ctx.fillStyle = theme.well
             ctx.fillRect(left, top, w, h)
-            ctx.strokeStyle = "#1d2028"
+            ctx.strokeStyle = theme.border
             ctx.lineWidth = 1
             ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1)
 
             // horizontal guides
-            ctx.strokeStyle = "#191c23"
+            ctx.strokeStyle = theme.grid
             for (let i = 1; i < 4; i++) {
                 const y = top + h * i / 4
                 ctx.beginPath()
@@ -86,7 +87,7 @@ Item {
             }
 
             // axis labels
-            ctx.fillStyle = "#5f6773"
+            ctx.fillStyle = theme.faintText
             ctx.font = "10px sans-serif"
             ctx.textAlign = "right"
             ctx.textBaseline = "middle"
@@ -135,7 +136,7 @@ Item {
                 const y = root.yFor(point.percent)
                 ctx.beginPath()
                 ctx.arc(x, y, 5.5, 0, Math.PI * 2)
-                ctx.fillStyle = "#0f1116"
+                ctx.fillStyle = theme.well
                 ctx.fill()
                 ctx.beginPath()
                 ctx.arc(x, y, 4, 0, Math.PI * 2)
@@ -158,7 +159,7 @@ Item {
                 const percent = root.valueAt(root.currentTemp)
                 ctx.beginPath()
                 ctx.arc(x, root.yFor(percent), 3, 0, Math.PI * 2)
-                ctx.fillStyle = "#ffffff"
+                ctx.fillStyle = theme.foreground
                 ctx.fill()
 
                 // A fixed corner keeps the readout off the curve and off the
@@ -166,7 +167,7 @@ Item {
                 const label = root.currentTemp + " °C → " + percent + " %"
                 ctx.fillStyle = "rgba(10, 11, 14, 0.85)"
                 ctx.fillRect(left + 4, top + 4, 92, 16)
-                ctx.fillStyle = "#ffffff"
+                ctx.fillStyle = theme.foreground
                 ctx.textAlign = "left"
                 ctx.textBaseline = "middle"
                 ctx.fillText(label, left + 9, top + 12)

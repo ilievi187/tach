@@ -17,7 +17,7 @@ Rectangle {
                     : "transparent"
     border.width: 1
     border.color: selected ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.45)
-                           : "#242832"
+                           : theme.border
 
     Behavior on color {
         ColorAnimation { duration: 140 }
@@ -26,7 +26,7 @@ Rectangle {
     Text {
         anchors.centerIn: parent
         text: root.text
-        color: root.selected ? theme.accent : "#a7aeb9"
+        color: root.selected ? theme.accent : theme.mutedText
         font.pixelSize: 12
         font.bold: root.selected
     }

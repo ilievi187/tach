@@ -41,17 +41,17 @@ Flickable {
                         width: 7
                         height: 7
                         radius: 4
-                        color: backend.overlayTools[modelData] ? theme.accent : "#3a3f4a"
+                        color: backend.overlayTools[modelData] ? theme.accent : theme.track
                     }
                     Text {
                         Layout.fillWidth: true
                         text: modelData
-                        color: "#d7dbe1"
+                        color: theme.foreground
                         font.pixelSize: 13
                     }
                     Text {
                         text: backend.overlayTools[modelData] ? qsTr("installed") : qsTr("not installed")
-                        color: backend.overlayTools[modelData] ? "#8b93a1" : "#5f6773"
+                        color: backend.overlayTools[modelData] ? theme.mutedText : theme.faintText
                         font.pixelSize: 11
                     }
                 }
@@ -60,7 +60,7 @@ Flickable {
             Text {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: "#5f6773"
+                color: theme.faintText
                 font.pixelSize: 11
                 text: qsTr("Install with: sudo pacman -S mangohud vkbasalt gamescope")
             }
@@ -74,7 +74,7 @@ Flickable {
             Text {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: "#8b93a1"
+                color: theme.mutedText
                 font.pixelSize: 12
                 text: qsTr("Writes a preset into MangoHud's config, inside a marked block that Tach owns. Your own lines are kept, and the old file is backed up first.")
             }
@@ -109,7 +109,7 @@ Flickable {
             Text {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: "#8b93a1"
+                color: theme.mutedText
                 font.pixelSize: 12
                 text: qsTr("Post-processing for Vulkan games. CAS sharpening is the one that pairs with a lower internal resolution; the others are anti-aliasing.")
             }
@@ -145,7 +145,7 @@ Flickable {
             Text {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: "#8b93a1"
+                color: theme.mutedText
                 font.pixelSize: 12
                 text: qsTr("There is no global FSR switch on Linux: Radeon Super Resolution lives in gamescope, and overlays are switched on per launch. These are the exact strings, copied to the clipboard with one click.")
             }
@@ -171,7 +171,7 @@ Flickable {
                         Text {
                             Layout.fillWidth: true
                             text: modelData.label
-                            color: "#8b93a1"
+                            color: theme.mutedText
                             font.pixelSize: 11
                         }
                         Button {
@@ -184,7 +184,7 @@ Flickable {
                     Text {
                         Layout.fillWidth: true
                         text: backend.launchOptions(modelData.id)
-                        color: "#d7dbe1"
+                        color: theme.foreground
                         font.pixelSize: 11
                         font.family: "monospace"
                         elide: Text.ElideRight

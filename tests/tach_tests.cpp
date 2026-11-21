@@ -324,6 +324,39 @@ private slots:
         }
     }
 
+    void parsesAWholeThemePalette()
+    {
+        QTemporaryDir dir;
+        QDir(dir.path()).mkpath("theme");
+        write(dir.path() + "/theme/colors.toml",
+              "mode = \"light\"\n"
+              "background = \"#eff1f5\"\n"
+              "foreground = \"#4c4f69\"\n"
+              "accent = \"#1e66f5\"\n"
+              "blue = \"#1e66f5\"\n"
+              "orange = \"#fe640b\"\n"
+              "red = \"#d20f39\"\n");
+
+        Theme theme(dir.path());
+        QVERIFY(theme.isLight());
+        QCOMPARE(theme.background(), QString("#eff1f5"));
+        QCOMPARE(theme.foreground(), QString("#4c4f69"));
+        QCOMPARE(theme.accent(), QString("#1e66f5"));
+        QVERIFY(theme.panel() != theme.background());
+        QVERIFY(theme.border() != theme.background());
+        // The accent is blue here, so the chart's info colour has to step aside.
+        QVERIFY(theme.info() != theme.accent());
+        QCOMPARE(theme.warn(), QString("#fe640b"));
+        QCOMPARE(theme.danger(), QString("#d20f39"));
+    }
+
+    void mixesColours()
+    {
+        QCOMPARE(Theme::mix("#000000", "#ffffff", 0.5), QString("#808080"));
+        QCOMPARE(Theme::mix("#ff0000", "#ff0000", 0.5), QString("#ff0000"));
+        QCOMPARE(Theme::mix("#000000", "#ffffff", 0.0), QString("#000000"));
+    }
+
     void themeFallsBack()
     {
         QTemporaryDir dir;

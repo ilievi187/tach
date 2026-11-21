@@ -35,7 +35,7 @@ Flickable {
             Text {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: "#8b93a1"
+                color: theme.mutedText
                 font.pixelSize: 12
                 text: qsTr("A preset is a shortcut for the controls below: one click sets the power limit, the DPM level, the power profile and the fan curve together. Change any of them by hand and the chip goes back to custom.")
             }
@@ -77,7 +77,7 @@ Flickable {
             Text {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: "#8b93a1"
+                color: theme.mutedText
                 font.pixelSize: 12
                 text: backend.canPowerCap
                       ? qsTr("The board power ceiling. Lower is quieter and cooler; the card clocks itself to fit. This is the safe knob, unlike voltages.")
@@ -112,21 +112,21 @@ Flickable {
 
                 Text {
                     text: Fmt.amount(backend.powerCapMinW, 0) + " W"
-                    color: "#5f6773"
+                    color: theme.faintText
                     font.pixelSize: 11
                 }
                 Item { Layout.fillWidth: true }
                 Text {
                     Layout.alignment: Qt.AlignHCenter
                     text: Fmt.amount(capSlider.value, 0) + " W"
-                    color: "#e8ebef"
+                    color: theme.foreground
                     font.pixelSize: 14
                     font.bold: true
                 }
                 Item { Layout.fillWidth: true }
                 Text {
                     text: Fmt.amount(backend.powerCapMaxW, 0) + " W"
-                    color: "#5f6773"
+                    color: theme.faintText
                     font.pixelSize: 11
                 }
             }
@@ -138,7 +138,7 @@ Flickable {
                 Text {
                     Layout.fillWidth: true
                     text: qsTr("Default %1 W").arg(Fmt.amount(backend.powerCapDefaultW, 0))
-                    color: "#5f6773"
+                    color: theme.faintText
                     font.pixelSize: 11
                 }
                 Button {
@@ -158,7 +158,7 @@ Flickable {
             Text {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: "#8b93a1"
+                color: theme.mutedText
                 font.pixelSize: 12
                 text: qsTr("pp_power_profile_mode: how the driver balances core and memory clocks against the frame rate. Full screen is tuned for games, Video for playback, Power saving for everything else.")
             }
@@ -186,7 +186,7 @@ Flickable {
             Text {
                 visible: backend.powerProfiles.length === 0
                 text: qsTr("This GPU does not expose power profiles.")
-                color: "#8b93a1"
+                color: theme.mutedText
                 font.pixelSize: 12
             }
         }
@@ -202,7 +202,7 @@ Flickable {
             Text {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: "#8b93a1"
+                color: theme.mutedText
                 font.pixelSize: 12
                 text: backend.dpmManagedByTach
                       ? qsTr("power-profiles-daemon no longer touches the amdgpu DPM level, so the performance level above stays where you put it.")
@@ -215,7 +215,7 @@ Flickable {
                 Text {
                     Layout.fillWidth: true
                     text: backend.dpmManagedByTach ? qsTr("override active") : qsTr("override not installed")
-                    color: "#5f6773"
+                    color: theme.faintText
                     font.pixelSize: 11
                 }
                 Button {
@@ -247,7 +247,7 @@ Flickable {
             Text {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: "#8b93a1"
+                color: theme.mutedText
                 font.pixelSize: 12
                 text: backend.canOverdrive
                       ? qsTr("This card exposes clock, voltage and fan controls. Tach does not touch them yet: writing pp_od_clk_voltage with a wrong pair of numbers can hang the GPU, and that deserves its own careful pass rather than a slider added in an afternoon.")
@@ -276,7 +276,7 @@ Flickable {
                 Layout.fillWidth: true
                 visible: !backend.canOverdrive
                 text: qsTr("Add it to the kernel command line and reboot, then this section unlocks.")
-                color: "#5f6773"
+                color: theme.faintText
                 font.pixelSize: 11
                 wrapMode: Text.WordWrap
             }

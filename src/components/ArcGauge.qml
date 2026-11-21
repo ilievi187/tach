@@ -8,11 +8,12 @@ Item {
     property real value: 0          // 0..100
     property string unit: "%"
     property color accentColor: theme.accent
-    property color trackColor: "#1b1e26"
+    property color trackColor: theme.track
     property int thickness: 8
 
     onValueChanged: gauge.requestPaint()
     onAccentColorChanged: gauge.requestPaint()
+    onTrackColorChanged: gauge.requestPaint()
     onWidthChanged: gauge.requestPaint()
     onHeightChanged: gauge.requestPaint()
 
@@ -55,14 +56,14 @@ Item {
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             text: Math.round(root.value)
-            color: "#f2f4f7"
+            color: theme.foreground
             font.pixelSize: Math.max(22, Math.round(root.height * 0.26))
             font.bold: true
         }
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             text: root.unit
-            color: "#8b93a1"
+            color: theme.mutedText
             font.pixelSize: Math.max(10, Math.round(root.height * 0.09))
         }
     }

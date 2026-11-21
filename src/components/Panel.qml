@@ -9,10 +9,10 @@ Rectangle {
     property string hint: ""
     default property alias content: inner.data
 
-    color: "#12141a"
+    color: theme.panel
     radius: theme.radius
     border.width: 1
-    border.color: "#1d2028"
+    border.color: theme.border
     implicitHeight: layout.implicitHeight + 32
     implicitWidth: 240
 
@@ -29,7 +29,7 @@ Rectangle {
             Text {
                 visible: root.title.length > 0
                 text: root.title
-                color: "#8b93a1"
+                color: theme.mutedText
                 font.pixelSize: 11
                 font.letterSpacing: 1.1
                 font.capitalization: Font.AllUppercase
@@ -38,7 +38,7 @@ Rectangle {
             Text {
                 visible: root.hint.length > 0
                 text: root.hint
-                color: "#5f6773"
+                color: theme.faintText
                 font.pixelSize: 11
             }
         }

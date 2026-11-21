@@ -28,9 +28,9 @@ Flickable {
             visible: backend.junctionTemp >= 95
             implicitHeight: heat.implicitHeight + 24
             radius: theme.radius
-            color: "#2a100d"
+            color: theme.dangerSoft
             border.width: 1
-            border.color: "#5c2019"
+            border.color: theme.dangerBorder
 
             RowLayout {
                 id: heat
@@ -40,14 +40,14 @@ Flickable {
 
                 Text {
                     text: "▲"
-                    color: "#ff6b5e"
+                    color: theme.danger
                     font.pixelSize: 14
                 }
                 Text {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     text: qsTr("Junction at %1 °C — the card is near its thermal limit. Lower the power limit or raise the fan curve.").arg(backend.junctionTemp)
-                    color: "#ffb4ac"
+                    color: theme.danger
                     font.pixelSize: 12
                 }
             }
@@ -75,7 +75,7 @@ Flickable {
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
                     text: qsTr("GPU load")
-                    color: "#8b93a1"
+                    color: theme.mutedText
                     font.pixelSize: 13
                 }
 
@@ -83,7 +83,7 @@ Flickable {
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
                     text: qsTr("memory controller %1").arg(Fmt.amount(backend.memUtilisation, 0) + " %")
-                    color: "#5f6773"
+                    color: theme.faintText
                     font.pixelSize: 11
                 }
 
@@ -102,7 +102,7 @@ Flickable {
 
                     Text {
                         text: Fmt.amount(backend.vramUsedGb, 1) + " GB"
-                        color: "#f2f4f7"
+                        color: theme.foreground
                         font.pixelSize: 30
                         font.bold: true
                     }
@@ -111,7 +111,7 @@ Flickable {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 8
                         radius: 4
-                        color: "#1b1e26"
+                        color: theme.track
 
                         Rectangle {
                             width: parent.width * Math.min(backend.vramFraction, 1)
@@ -132,13 +132,13 @@ Flickable {
 
                         Text {
                             text: backend.junctionTemp + "°C"
-                            color: backend.junctionTemp >= 100 ? "#ff6b5e" : "#f2f4f7"
+                            color: backend.junctionTemp >= 100 ? theme.danger : theme.foreground
                             font.pixelSize: 28
                             font.bold: true
                         }
                         Text {
                             text: qsTr("edge %1 · mem %2").arg(backend.edgeTemp).arg(backend.memTemp)
-                            color: "#5f6773"
+                            color: theme.faintText
                             font.pixelSize: 11
                         }
                     }
@@ -149,7 +149,7 @@ Flickable {
 
                         Text {
                             text: Fmt.amount(backend.power, 0) + " W"
-                            color: "#f2f4f7"
+                            color: theme.foreground
                             font.pixelSize: 28
                             font.bold: true
                         }
@@ -157,7 +157,7 @@ Flickable {
                             text: backend.powerCapW > 0
                                   ? qsTr("limit %1 W").arg(Fmt.amount(backend.powerCapW, 0))
                                   : qsTr("no limit exposed")
-                            color: "#5f6773"
+                            color: theme.faintText
                             font.pixelSize: 11
                         }
                     }
@@ -173,12 +173,12 @@ Flickable {
                 Layout.fillWidth: true
                 spacing: 14
                 LegendDot { colour: theme.accent; label: qsTr("Load") }
-                LegendDot { colour: "#ff8f6b"; label: qsTr("Junction °C") }
-                LegendDot { colour: "#7aa2ff"; label: qsTr("Power W") }
+                LegendDot { colour: theme.warn; label: qsTr("Junction °C") }
+                LegendDot { colour: theme.info; label: qsTr("Power W") }
                 Item { Layout.fillWidth: true }
                 Text {
                     text: qsTr("1 sample / second")
-                    color: "#5f6773"
+                    color: theme.faintText
                     font.pixelSize: 11
                 }
             }
@@ -206,14 +206,14 @@ Flickable {
                     spacing: 2
                     Text {
                         text: qsTr("Last 60 s")
-                        color: "#5f6773"
+                        color: theme.faintText
                         font.pixelSize: 11
                     }
                     Text {
                         text: backend.windowStats.utilMax + " %  ·  "
                               + backend.windowStats.tempMax + " °C  ·  "
                               + backend.windowStats.powerMax + " W"
-                        color: "#e8ebef"
+                        color: theme.foreground
                         font.pixelSize: 16
                         font.bold: true
                     }
@@ -223,14 +223,14 @@ Flickable {
                     spacing: 2
                     Text {
                         text: qsTr("Since start")
-                        color: "#5f6773"
+                        color: theme.faintText
                         font.pixelSize: 11
                     }
                     Text {
                         text: backend.sessionStats.utilMax + " %  ·  "
                               + backend.sessionStats.tempMax + " °C  ·  "
                               + backend.sessionStats.powerMax + " W"
-                        color: "#e8ebef"
+                        color: theme.foreground
                         font.pixelSize: 16
                         font.bold: true
                     }
@@ -243,7 +243,7 @@ Flickable {
                     text: backend.recording
                           ? qsTr("recording · %1 s").arg(backend.recordedSeconds)
                           : qsTr("%1 samples").arg(backend.sessionStats.samples)
-                    color: backend.recording ? "#ff6b8a" : "#5f6773"
+                    color: backend.recording ? theme.danger : theme.faintText
                     font.pixelSize: 11
                 }
             }
@@ -258,7 +258,7 @@ Flickable {
                 title: qsTr("Core")
                 Text {
                     text: Fmt.clock(backend.coreClock)
-                    color: "#e8ebef"
+                    color: theme.foreground
                     font.pixelSize: 20
                     font.bold: true
                 }
@@ -268,7 +268,7 @@ Flickable {
                 title: qsTr("Memory")
                 Text {
                     text: Fmt.clock(backend.memClock)
-                    color: "#e8ebef"
+                    color: theme.foreground
                     font.pixelSize: 20
                     font.bold: true
                 }
@@ -287,7 +287,7 @@ Flickable {
                 title: qsTr("PCIe")
                 Text {
                     text: backend.pcie
-                    color: "#e8ebef"
+                    color: theme.foreground
                     font.pixelSize: 16
                     font.bold: true
                 }

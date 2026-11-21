@@ -41,7 +41,7 @@ Flickable {
 
             Text {
                 text: qsTr("By %1").arg(root.sortMode === 0 ? qsTr("VRAM") : qsTr("GPU time"))
-                color: "#8b93a1"
+                color: theme.mutedText
                 font.pixelSize: 11
             }
             Item { Layout.fillWidth: true }
@@ -72,7 +72,7 @@ Flickable {
                 Text {
                     Layout.fillWidth: true
                     text: qsTr("Name")
-                    color: "#5f6773"
+                    color: theme.faintText
                     font.pixelSize: 10
                     font.capitalization: Font.AllUppercase
                 }
@@ -80,7 +80,7 @@ Flickable {
                     Layout.preferredWidth: 70
                     horizontalAlignment: Text.AlignRight
                     text: qsTr("GPU")
-                    color: "#5f6773"
+                    color: theme.faintText
                     font.pixelSize: 10
                     font.capitalization: Font.AllUppercase
                 }
@@ -88,7 +88,7 @@ Flickable {
                     Layout.preferredWidth: 96
                     horizontalAlignment: Text.AlignRight
                     text: qsTr("VRAM")
-                    color: "#5f6773"
+                    color: theme.faintText
                     font.pixelSize: 10
                     font.capitalization: Font.AllUppercase
                 }
@@ -109,7 +109,7 @@ Flickable {
                     Rectangle {
                         anchors.fill: parent
                         radius: Math.min(4, theme.radius)
-                        color: rowHover.hovered ? "#181b22" : "transparent"
+                        color: rowHover.hovered ? theme.hover : "transparent"
                     }
 
                     RowLayout {
@@ -124,7 +124,7 @@ Flickable {
                         Text {
                             Layout.fillWidth: true
                             text: modelData.name
-                            color: "#d7dbe1"
+                            color: theme.foreground
                             font.pixelSize: 13
                             elide: Text.ElideMiddle
                         }
@@ -132,14 +132,14 @@ Flickable {
                             Layout.preferredWidth: 70
                             horizontalAlignment: Text.AlignRight
                             text: modelData.busy > 0.5 ? Fmt.amount(modelData.busy, 0) + " %" : "—"
-                            color: modelData.busy > 50 ? theme.accent : "#8b93a1"
+                            color: modelData.busy > 50 ? theme.accent : theme.mutedText
                             font.pixelSize: 12
                         }
                         Text {
                             Layout.preferredWidth: 96
                             horizontalAlignment: Text.AlignRight
                             text: Fmt.amount(modelData.vram / 1073741824, 2) + " GB"
-                            color: "#8b93a1"
+                            color: theme.mutedText
                             font.pixelSize: 12
                         }
                     }
@@ -151,7 +151,7 @@ Flickable {
                 visible: backend.processes.length === 0
                 Layout.fillWidth: true
                 text: qsTr("Nothing is holding VRAM right now.")
-                color: "#8b93a1"
+                color: theme.mutedText
                 font.pixelSize: 13
             }
         }
@@ -163,7 +163,7 @@ Flickable {
             Text {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: "#8b93a1"
+                color: theme.mutedText
                 font.pixelSize: 12
                 text: qsTr("VRAM is drm-total-vram from /proc/<pid>/fdinfo, summed per DRM client so a process with several descriptors is not counted twice. GPU time is the change in drm-engine-gfx between two samples.")
             }

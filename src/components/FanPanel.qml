@@ -26,7 +26,7 @@ Panel {
     Text {
         Layout.fillWidth: true
         wrapMode: Text.WordWrap
-        color: "#8b93a1"
+        color: theme.mutedText
         font.pixelSize: 12
         text: qsTr("Fan control runs in its own system service, not in this window: closing Tach, or a crash, cannot leave the fan pinned. The service writes pwm1 and returns the card to automatic when it stops.")
     }
@@ -72,7 +72,7 @@ Panel {
             Layout.preferredWidth: 48
             horizontalAlignment: Text.AlignRight
             text: Math.round(staticSlider.value) + " %"
-            color: "#e8ebef"
+            color: theme.foreground
             font.pixelSize: 14
             font.bold: true
         }
@@ -92,7 +92,7 @@ Panel {
         Layout.fillWidth: true
         visible: panel.mode === "curve"
         wrapMode: Text.WordWrap
-        color: "#5f6773"
+        color: theme.faintText
         font.pixelSize: 11
         text: qsTr("Below 55 °C the fan may stop. Above it Tach never goes under 20 %, whatever the curve says.")
     }
@@ -104,7 +104,7 @@ Panel {
         Text {
             Layout.fillWidth: true
             text: backend.fanRpm > 0 ? qsTr("now %1 rpm").arg(backend.fanRpm) : qsTr("fan stopped")
-            color: "#5f6773"
+            color: theme.faintText
             font.pixelSize: 11
         }
 

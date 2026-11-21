@@ -4,7 +4,7 @@ import QtQuick.Layouts
 RowLayout {
     id: root
 
-    property color colour: "#ffffff"
+    property color colour: theme.foreground
     property string label: ""
 
     spacing: 6
@@ -19,7 +19,7 @@ RowLayout {
     Text {
         Layout.alignment: Qt.AlignVCenter
         text: root.label
-        color: "#8b93a1"
+        color: theme.mutedText
         font.pixelSize: 11
     }
 }

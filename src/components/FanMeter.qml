@@ -23,7 +23,7 @@ ColumnLayout {
 
         Text {
             text: root.rpm > 0 ? root.rpm.toString() : qsTr("off")
-            color: "#e8ebef"
+            color: theme.foreground
             font.pixelSize: 20
             font.bold: true
         }
@@ -32,7 +32,7 @@ ColumnLayout {
             Layout.bottomMargin: 3
             visible: root.rpm > 0
             text: qsTr("of %1 rpm").arg(root.maximum)
-            color: "#5f6773"
+            color: theme.faintText
             font.pixelSize: 11
         }
     }
@@ -54,7 +54,7 @@ ColumnLayout {
                     width: Math.max(2, (root.width - (root.segments - 1) * 3) / root.segments)
                     height: 8
                     radius: 2
-                    color: index < root.lit ? root.accentColor : "#1b1e26"
+                    color: index < root.lit ? root.accentColor : theme.track
 
                     Behavior on color {
                         ColorAnimation { duration: 220; easing.type: Easing.OutCubic }
