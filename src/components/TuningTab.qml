@@ -71,76 +71,6 @@ Flickable {
         Panel {
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignTop
-            title: qsTr("Performance level")
-            hint: backend.perfLevel
-
-            Text {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                color: "#8b93a1"
-                font.pixelSize: 12
-                text: qsTr("The DPM level the driver is allowed to reach. Auto is the right answer almost always; High pins the card at its top state.")
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 8
-
-                Repeater {
-                    model: [
-                        { level: "auto", label: qsTr("Auto") },
-                        { level: "high", label: qsTr("High") },
-                        { level: "low", label: qsTr("Low") }
-                    ]
-
-                    delegate: Choice {
-                        required property var modelData
-
-                        Layout.fillWidth: true
-                        selected: backend.perfLevel === modelData.level
-                        text: modelData.label
-                        onClicked: backend.setPerformanceLevel(modelData.level)
-                    }
-                }
-            }
-        }
-
-        Panel {
-            Layout.fillWidth: true
-            visible: backend.powerDaemonActive
-            title: qsTr("DPM ownership")
-            hint: backend.dpmManagedByTach ? qsTr("Tach manages it") : qsTr("shared")
-
-            Text {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                color: "#8b93a1"
-                font.pixelSize: 12
-                text: backend.dpmManagedByTach
-                      ? qsTr("power-profiles-daemon no longer touches the amdgpu DPM level, so the performance level above stays where you put it.")
-                      : qsTr("power-profiles-daemon is running and may overwrite the performance level with its own profile. Let Tach own the DPM level, or expect the two to fight.")
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-
-                Text {
-                    Layout.fillWidth: true
-                    text: backend.dpmManagedByTach ? qsTr("override active") : qsTr("override not installed")
-                    color: "#5f6773"
-                    font.pixelSize: 11
-                }
-                Button {
-                    text: backend.dpmManagedByTach ? qsTr("Give it back") : qsTr("Let Tach manage it")
-                    enabled: !backend.busy
-                    onClicked: backend.dpmManagedByTach ? backend.restoreDpm() : backend.takeOverDpm()
-                }
-            }
-        }
-
-        Panel {
-            Layout.fillWidth: true
-            Layout.alignment: Qt.AlignTop
             title: qsTr("Power limit")
             hint: backend.powerCapW > 0 ? qsTr("now %1 W").arg(Fmt.amount(backend.powerCapW, 0)) : ""
 
@@ -258,6 +188,41 @@ Flickable {
                 text: qsTr("This GPU does not expose power profiles.")
                 color: "#8b93a1"
                 font.pixelSize: 12
+            }
+        }
+
+        Panel {
+            Layout.fillWidth: true
+            Layout.columnSpan: content.columns
+            Layout.alignment: Qt.AlignTop
+            visible: backend.powerDaemonActive
+            title: qsTr("DPM ownership")
+            hint: backend.dpmManagedByTach ? qsTr("Tach manages it") : qsTr("shared")
+
+            Text {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                color: "#8b93a1"
+                font.pixelSize: 12
+                text: backend.dpmManagedByTach
+                      ? qsTr("power-profiles-daemon no longer touches the amdgpu DPM level, so the performance level above stays where you put it.")
+                      : qsTr("power-profiles-daemon is running and may overwrite the performance level with its own profile. Let Tach own the DPM level, or expect the two to fight.")
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Text {
+                    Layout.fillWidth: true
+                    text: backend.dpmManagedByTach ? qsTr("override active") : qsTr("override not installed")
+                    color: "#5f6773"
+                    font.pixelSize: 11
+                }
+                Button {
+                    text: backend.dpmManagedByTach ? qsTr("Give it back") : qsTr("Let Tach manage it")
+                    enabled: !backend.busy
+                    onClicked: backend.dpmManagedByTach ? backend.restoreDpm() : backend.takeOverDpm()
+                }
             }
         }
 
