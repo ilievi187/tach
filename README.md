@@ -69,6 +69,13 @@ If `power-profiles-daemon` is running it can overwrite the performance level, so
 Tuning offers a one-click override (`--block-action=amdgpu_dpm`) and a way to
 give it back.
 
+**Profiles** — automatic switching. A small system service watches process
+names and applies the matching preset: launch a game and the card goes to
+3D_FULL_SCREEN with a fan curve that suits it, close it and the default comes
+back. Rules match a case-insensitive piece of the process name (`steam_app_`
+catches every Proton game), and the config lives in `/etc/tach/profiles.json`
+so the service can read it without a password mid-game.
+
 **Overlays** — MangoHud and vkBasalt presets, written into a block Tach owns
 (inside `# >>> tach managed block >>>`), with the previous file backed up first.
 Plus the exact launch-option strings for MangoHud, vkBasalt and FSR, one click to
@@ -96,14 +103,16 @@ silently does nothing would be worse than no app.
 ./bin/install          # qmake6 + make, then makepkg -fsi
 ```
 
-Lands in the launcher (Super + Space) as **Tach**. Needs `qt6-base`,
-`qt6-declarative`, `qt6-wayland` and `polkit` — all part of an Omarchy install.
+Lands in the launcher (Super + Space) as **Tach**. Ships two services:
+`tach-fan.service` (fan curve) and `tach-profiles.service` (automatic switching).
+Needs `qt6-base`, `qt6-declarative`, `qt6-wayland` and `polkit` — all part of an
+Omarchy install.
 
 ## Keys
 
 | Key | Action |
 |---|---|
-| `1` – `4` | Overview, Processes, Tuning, Overlays |
+| `1` – `5` | Overview, Processes, Tuning, Profiles, Overlays |
 | `R` | Read a fresh sample |
 | `?` | Key list |
 | `Q` | Quit |
@@ -118,6 +127,7 @@ tach set-profile 1          # power profile index
 tach set-power-cap 250      # watts, clamped to the driver's min/max
 tach fan-apply '{"mode":"curve","curve":[{"temp":50,"percent":0},…]}'
 tach preset quiet           # cap, level, profile and fan curve in one go
+tach profiles-apply '{"auto":true,"default":"balanced","rules":[…]}'
 tach fan-auto               # hand the fan back to the card
 tach ppd-takeover           # keep power-profiles-daemon off the DPM level
 ```
@@ -129,6 +139,8 @@ The `set-*` verbs write root-owned sysfs files, so the GUI runs them as
 
 - One sample a second; the `/proc` walk runs every five, which keeps idle cost
   around **1-1.5% of one core**.
+- Rule matching and preset application are tested against a fake `/proc` tree
+  and a fake card, including the "N settings" count.
 - The fan loop is tested against a fake hwmon tree (`tests/fan-service.sh`): it
   checks the curve, the zero-RPM point, the 20 % clamp on a hot card, and that
   `pwm1_enable` goes back to 2 when the service is asked to stop.

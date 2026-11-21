@@ -15,6 +15,8 @@
 #include <QRegularExpression>
 #include <QSaveFile>
 #include <QStandardPaths>
+
+#include "profiles.h"
 #include <QStringList>
 
 namespace {
@@ -201,6 +203,7 @@ void Backend::setCardPath(const QString &cardPath) {
 
     detectOverlayTools();
     readFanConfig();
+    readProfiles();
     refreshFanState();
     emit cardChanged();
 }
@@ -296,6 +299,7 @@ void Backend::refreshFanState() {
     const bool daemonActive = run({"is-active", "power-profiles-daemon"}) == QLatin1String("active");
     const bool managed = QFileInfo::exists(
         "/etc/systemd/system/power-profiles-daemon.service.d/tach.conf");
+    const bool profilesActive = run({"is-active", "tach-profiles"}) == QLatin1String("active");
 
     if (serviceActive != m_fanServiceActive || daemonActive != m_powerDaemonActive ||
         managed != m_dpmManagedByTach) {
@@ -304,6 +308,10 @@ void Backend::refreshFanState() {
         m_dpmManagedByTach = managed;
         emit fanChanged();
         emit cardChanged();
+    }
+    if (profilesActive != m_profilesServiceActive) {
+        m_profilesServiceActive = profilesActive;
+        emit profilesChanged();
     }
 }
 
@@ -336,6 +344,42 @@ void Backend::takeOverDpm() {
 
 void Backend::restoreDpm() {
     runPrivileged({"tach", "ppd-restore"}, tr("power-profiles-daemon restored"));
+}
+
+void Backend::readProfiles() {
+    QFile file(Profiles::configPath());
+    QJsonObject root;
+    if (file.open(QIODevice::ReadOnly))
+        root = QJsonDocument::fromJson(file.readAll()).object();
+
+    const Profiles::Config config = Profiles::parseConfig(root);
+    QVariantList rules;
+    for (const auto &rule : config.rules)
+        rules.append(QVariantMap{{"match", rule.match}, {"preset", rule.preset}});
+
+    m_profileAuto = config.autoSwitch;
+    m_profileDefault = config.fallback;
+    m_profileRules = rules;
+    emit profilesChanged();
+}
+
+void Backend::saveProfiles(bool autoSwitch, const QString &fallback, const QVariantList &rules) {
+    QJsonArray array;
+    for (const auto &entry : rules) {
+        const QVariantMap map = entry.toMap();
+        const QString match = map.value("match").toString().trimmed();
+        const QString preset = map.value("preset").toString();
+        if (!match.isEmpty())
+            array.append(QJsonObject{{"match", match}, {"preset", preset}});
+    }
+    const QJsonObject root{
+        {"auto", autoSwitch},
+        {"default", fallback},
+        {"rules", array},
+    };
+    runPrivileged({"tach", "profiles-apply",
+                   QString::fromUtf8(QJsonDocument(root).toJson(QJsonDocument::Compact))},
+                  tr("Profiles saved"));
 }
 
 void Backend::detectOverlayTools() {

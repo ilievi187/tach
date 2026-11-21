@@ -1,9 +1,13 @@
 #include <QDir>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QtTest>
 
 #include "backend.h"
+#include "profiles.h"
 #include "theme.h"
 #include "translator.h"
 
@@ -11,6 +15,12 @@ class TachTests : public QObject {
     Q_OBJECT
 
 private:
+    static QString readAll(const QString &path)
+    {
+        QFile file(path);
+        return file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString();
+    }
+
     static void write(const QString &path, const QByteArray &contents)
     {
         QDir().mkpath(QFileInfo(path).absolutePath());
@@ -355,6 +365,84 @@ private slots:
         QCOMPARE(Theme::mix("#000000", "#ffffff", 0.5), QString("#808080"));
         QCOMPARE(Theme::mix("#ff0000", "#ff0000", 0.5), QString("#ff0000"));
         QCOMPARE(Theme::mix("#000000", "#ffffff", 0.0), QString("#000000"));
+    }
+
+    void parsesProfileRules()
+    {
+        const QJsonObject root{
+            {"auto", true},
+            {"default", "game"},
+            {"rules", QJsonArray{
+                QJsonObject{{"match", "steam_app_"}, {"preset", "game"}},
+                QJsonObject{{"match", ""}, {"preset", "quiet"}},          // no match: dropped
+                QJsonObject{{"match", "obs"}, {"preset", "nonsense"}},    // bad preset: dropped
+            }},
+        };
+        const Profiles::Config config = Profiles::parseConfig(root);
+        QVERIFY(config.autoSwitch);
+        QCOMPARE(config.fallback, QString("game"));
+        QCOMPARE(config.rules.size(), 1);
+        QCOMPARE(config.rules.first().match, QString("steam_app_"));
+    }
+
+    void profileFallbackMustBeAPreset()
+    {
+        const QJsonObject root{{"default", "turbo"}};
+        QCOMPARE(Profiles::parseConfig(root).fallback, QString("balanced"));
+    }
+
+    void choosesAPresetByProcessName()
+    {
+        Profiles::Config config;
+        config.autoSwitch = true;
+        config.fallback = "balanced";
+        config.rules = { Profiles::Rule{"steam_app_", "game"} };
+
+        QCOMPARE(Profiles::choosePreset(config, {"hyprland", "steam_app_1234"}),
+                 QString("game"));
+        QCOMPARE(Profiles::choosePreset(config, {"hyprland", "ghostty"}),
+                 QString("balanced"));
+
+        config.autoSwitch = false;
+        QVERIFY(Profiles::choosePreset(config, {"steam_app_1234"}).isEmpty());
+    }
+
+    void readsProcessNamesFromAProcTree()
+    {
+        QTemporaryDir dir;
+        const QString proc = dir.path();
+        write(proc + "/42/comm", "Hyprland\n");
+        write(proc + "/7/comm", "steam_app_1234\n");
+        write(proc + "/not-a-pid/comm", "ignored\n");
+
+        const QStringList names = Profiles::runningProcessNames(proc);
+        QVERIFY(names.contains("hyprland"));
+        QVERIFY(names.contains("steam_app_1234"));
+        QVERIFY(!names.contains("ignored"));
+    }
+
+    void appliesAPresetToTheFakeCard()
+    {
+        QTemporaryDir dir;
+        const QString card = fakeCard(dir.path());
+        const QString fanConfig = dir.path() + "/fan.json";
+        qputenv("TACH_FAN_CONFIG", fanConfig.toUtf8());
+        qputenv("TACH_NO_SYSTEMD", "1");
+
+        Backend backend(dir.path());
+        QCOMPARE(Profiles::applyPreset("game", backend), 4);
+        QCOMPARE(QFile(card + "/hwmon/hwmon3/power1_cap").size() > 0, true);
+        QCOMPARE(readAll(card + "/hwmon/hwmon3/power1_cap").trimmed(), QString("400000000"));
+        QCOMPARE(readAll(card + "/power_dpm_force_performance_level").trimmed(), QString("high"));
+        QCOMPARE(readAll(card + "/pp_power_profile_mode").trimmed(), QString("1"));
+
+        const QJsonObject fan = QJsonDocument::fromJson(readAll(fanConfig).toUtf8()).object();
+        QCOMPARE(fan.value("mode").toString(), QString("curve"));
+        QCOMPARE(fan.value("curve").toArray().size(), 4);
+
+        QCOMPARE(Profiles::applyPreset("turbo", backend), -1);
+        qunsetenv("TACH_FAN_CONFIG");
+        qunsetenv("TACH_NO_SYSTEMD");
     }
 
     void themeFallsBack()

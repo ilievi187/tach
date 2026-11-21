@@ -26,6 +26,7 @@ int main(int argc, char *argv[]) {
     const bool headless = first == "status" || first == "log" || first == "set-level" ||
                           first == "set-profile" || first == "set-power-cap" ||
                           first == "fan-apply" || first == "fan-auto" || first == "preset" ||
+                          first == "profiles-apply" || first == "--profile-watch" ||
                           first == "ppd-takeover" || first == "ppd-restore" ||
                           first == "--fan-service";
 
@@ -43,7 +44,7 @@ int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
     QCoreApplication::setOrganizationName("tach");
     app.setApplicationName("tach");
-    app.setApplicationVersion("0.7.0");
+    app.setApplicationVersion("0.8.0");
 
     // Matches the window to tach.desktop, so the compositor (Wayland app_id)
     // and the launcher pick up the installed icon.

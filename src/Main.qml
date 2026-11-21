@@ -58,6 +58,11 @@ ApplicationWindow {
         context: Qt.ApplicationShortcut
         onActivated: win.tab = 3
     }
+    Shortcut {
+        sequence: "5"
+        context: Qt.ApplicationShortcut
+        onActivated: win.tab = 4
+    }
 
     Item {
         anchors.fill: parent
@@ -130,7 +135,8 @@ ApplicationWindow {
                             { label: qsTr("Overview"), short: "1" },
                             { label: qsTr("Processes"), short: "2" },
                             { label: qsTr("Tuning"), short: "3" },
-                            { label: qsTr("Overlays"), short: "4" }
+                            { label: qsTr("Profiles"), short: "4" },
+                            { label: qsTr("Overlays"), short: "5" }
                         ]
 
                         delegate: Item {
@@ -373,13 +379,14 @@ ApplicationWindow {
                     OverviewTab { app: win }
                     ProcessesTab { app: win }
                     TuningTab { app: win }
+                    ProfilesTab { app: win }
                     OverlaysTab { app: win }
                 }
 
                 Text {
                     Layout.fillWidth: true
                     text: backend.status.length > 0 ? backend.status
-                                                    : qsTr("R refresh · 1-4 tabs · ? keys · Q quit")
+                                                    : qsTr("R refresh · 1-5 tabs · ? keys · Q quit")
                     color: backend.busy ? theme.accent : theme.faintText
                     font.pixelSize: 11
                     elide: Text.ElideRight
@@ -422,7 +429,7 @@ ApplicationWindow {
 
                     Repeater {
                         model: [
-                            { key: "1 - 4", action: qsTr("Overview, Processes, Tuning, Overlays") },
+                            { key: "1 - 5", action: qsTr("Overview, Processes, Tuning, Profiles, Overlays") },
                             { key: "R", action: qsTr("Read a fresh sample") },
                             { key: "?", action: qsTr("Show or hide this list") },
                             { key: "Esc", action: qsTr("Close") },

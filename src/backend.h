@@ -62,6 +62,10 @@ class Backend : public QObject {
     Q_PROPERTY(QVariantMap overlayTools READ overlayTools NOTIFY cardChanged)
 
     Q_PROPERTY(QString activePreset READ activePreset NOTIFY sampleChanged)
+    Q_PROPERTY(bool profileAuto READ profileAuto NOTIFY profilesChanged)
+    Q_PROPERTY(QString profileDefault READ profileDefault NOTIFY profilesChanged)
+    Q_PROPERTY(QVariantList profileRules READ profileRules NOTIFY profilesChanged)
+    Q_PROPERTY(bool profilesServiceActive READ profilesServiceActive NOTIFY profilesChanged)
     Q_PROPERTY(QVariantList cards READ cards NOTIFY cardChanged)
     Q_PROPERTY(int cardIndex READ cardIndex NOTIFY cardChanged)
     Q_PROPERTY(QVariantMap sessionStats READ sessionStats NOTIFY sampleChanged)
@@ -127,6 +131,10 @@ public:
     // Matched from the live values, so the chip is honest even if something
     // else changed the card behind our back.
     QString activePreset() const;
+    bool profileAuto() const { return m_profileAuto; }
+    QString profileDefault() const { return m_profileDefault; }
+    QVariantList profileRules() const { return m_profileRules; }
+    bool profilesServiceActive() const { return m_profilesServiceActive; }
 
     QVariantList cards() const { return m_cards; }
     int cardIndex() const { return m_cardIndex; }
@@ -169,6 +177,7 @@ public:
     // stays pinned if the window closes or crashes: the GUI only writes a
     // config and lets the service apply it.
     Q_INVOKABLE void applyPreset(const QString &name);
+    Q_INVOKABLE void saveProfiles(bool autoSwitch, const QString &fallback, const QVariantList &rules);
     Q_INVOKABLE void selectCard(int index);
     Q_INVOKABLE void startRecording();
     Q_INVOKABLE void stopRecording();
@@ -207,6 +216,7 @@ signals:
     void statusChanged();
     void errorChanged();
     void fanChanged();
+    void profilesChanged();
     void recordingChanged();
 
 private:
@@ -217,6 +227,7 @@ private:
     void detectOverlayTools();
     void refreshFanState();
     void readFanConfig();
+    void readProfiles();
     void updateStats();
     void runPrivileged(const QStringList &arguments, const QString &successMessage);
 
@@ -284,6 +295,11 @@ private:
     double m_maxPower = 0;
     int m_maxUtilisation = 0;
     int m_statsSamples = 0;
+
+    bool m_profileAuto = false;
+    QString m_profileDefault = "balanced";
+    QVariantList m_profileRules;
+    bool m_profilesServiceActive = false;
 
     QString m_fanMode = "auto";
     int m_fanPercent = 50;

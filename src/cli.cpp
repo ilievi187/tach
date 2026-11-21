@@ -13,6 +13,7 @@
 #include <QTextStream>
 
 #include "backend.h"
+#include "profiles.h"
 
 #include <csignal>
 #include <cstdio>
@@ -480,91 +481,20 @@ int fanAutoCommand() {
 // fights the Performance level control. The override keeps it out of the way
 // without touching anything else the daemon does.
 // A preset is one privileged step that sets the power cap, the DPM level, the
-// power profile and the fan curve together, so "quiet" is a single click rather
-// than four settings that can be left half applied.
+// power profile and the fan curve together. The same code runs from the
+// automatic profile watcher.
 int presetCommand(const QStringList &args) {
     const QString name = args.value(1);
-    struct Preset {
-        QString level;
-        QString profile;
-        bool capMin, capMax;
-        QList<int> percents;
-    };
-    const QMap<QString, Preset> presets{
-        {"quiet", {"auto", "POWER_SAVING", true, false, {0, 20, 40, 70}}},
-        {"balanced", {"auto", "BOOTUP_DEFAULT", false, false, {0, 35, 60, 100}}},
-        {"game", {"high", "3D_FULL_SCREEN", false, true, {25, 50, 75, 100}}},
-    };
-    if (!presets.contains(name)) {
-        err() << "usage: tach preset <quiet|balanced|game>\n";
-        return 2;
-    }
-
     Backend backend;
     if (!backend.available()) {
         err() << backend.error() << "\n";
         return 1;
     }
-    const Preset preset = presets.value(name);
-    const QString hwmon = hwmonFor(backend.cardPath());
-    int applied = 0;
-
-    if (!hwmon.isEmpty()) {
-        const double cap = preset.capMin ? backend.powerCapMinW()
-                          : preset.capMax ? backend.powerCapMaxW()
-                                          : backend.powerCapDefaultW();
-        if (cap > 0 && writeSysfs(hwmon + "/power1_cap",
-                                  QString::number(qRound64(cap * 1e6)), "preset"))
-            ++applied;
+    const int applied = Profiles::applyPreset(name, backend);
+    if (applied < 0) {
+        err() << "usage: tach preset <quiet|balanced|game>\n";
+        return 2;
     }
-
-    if (!backend.cardPath().isEmpty()) {
-        if (writeSysfs(backend.cardPath() + "/power_dpm_force_performance_level",
-                       preset.level, "preset"))
-            ++applied;
-
-        QFile table(backend.cardPath() + "/pp_power_profile_mode");
-        if (table.open(QIODevice::ReadOnly)) {
-            int active = -1;
-            const QVariantList profiles =
-                Backend::parsePowerProfiles(QString::fromUtf8(table.readAll()), &active);
-            table.close();
-            for (const auto &entry : profiles) {
-                const QVariantMap map = entry.toMap();
-                if (!map.value("name").toString().contains(preset.profile))
-                    continue;
-                QFile profileFile(table.fileName());
-                if (profileFile.open(QIODevice::WriteOnly)) {
-                    profileFile.write(QByteArray::number(map.value("index").toInt()));
-                    profileFile.close();
-                    ++applied;
-                }
-                break;
-            }
-        }
-    }
-
-    QJsonArray curve;
-    const QList<int> temps{50, 65, 80, 90};
-    for (int i = 0; i < temps.size(); ++i)
-        curve.append(QJsonObject{{"temp", temps.at(i)}, {"percent", preset.percents.value(i)}});
-    const QJsonObject fan{
-        {"mode", "curve"},
-        {"staticPercent", 50},
-        {"tempSource", "junction"},
-        {"curve", curve},
-    };
-    const QString path = Backend::fanConfigPath();
-    QDir().mkpath(QFileInfo(path).absolutePath());
-    QFile file(path);
-    if (file.open(QIODevice::WriteOnly)) {
-        file.write(QJsonDocument(fan).toJson(QJsonDocument::Indented));
-        file.close();
-        QProcess::execute("systemctl", {"enable", "tach-fan"});
-        QProcess::execute("systemctl", {"restart", "tach-fan"});
-        ++applied;
-    }
-
     if (applied == 0) {
         err() << "nothing could be applied\n";
         return 1;
@@ -633,6 +563,10 @@ int runCli(const QStringList &args) {
         return setPowerCapCommand(args);
     if (command == "log")
         return logCommand(args);
+    if (command == "profiles-apply")
+        return Profiles::applyConfig(args.value(1));
+    if (command == "--profile-watch")
+        return Profiles::runWatch();
     if (command == "preset")
         return presetCommand(args);
     if (command == "fan-apply")

@@ -13,6 +13,7 @@
         <file alias="components/Panel.qml">components/Panel.qml</file>
         <file alias="components/SectionLabel.qml">components/SectionLabel.qml</file>
         <file alias="components/ProcessesTab.qml">components/ProcessesTab.qml</file>
+        <file alias="components/ProfilesTab.qml">components/ProfilesTab.qml</file>
         <file alias="components/TuningTab.qml">components/TuningTab.qml</file>
         <file alias="components/Format.js">components/Format.js</file>
         <file alias="i18n/bg.json">i18n/bg.json</file>

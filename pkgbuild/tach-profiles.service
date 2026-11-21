@@ -1,0 +1,13 @@
+[Unit]
+Description=Tach automatic GPU profiles
+Documentation=https://github.com/ilievi187/tach
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/tach --profile-watch
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
