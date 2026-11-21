@@ -17,7 +17,7 @@ root for anything you can only watch.
 power and its limit, a minute of history on one chart, plus core clock, memory
 clock, fan and PCIe link.
 
-<img src="docs/processes.png" width="410" alt="Processes tab"> <img src="docs/tuning.png" width="410" alt="Tuning tab">
+<img src="docs/processes.png" width="410" alt="Processes tab"> <img src="docs/fan.png" width="410" alt="Tuning tab: performance level, fan curve, power limit, power profile">
 
 **Processes** — every process holding VRAM, with its share of GPU time. Sort by
 either. VRAM is `drm-total-vram` summed **per DRM client**, so a process with
@@ -33,6 +33,18 @@ the desktop's own polkit agent and Tach never holds a password:
 | Performance level (auto/high/low) | `power_dpm_force_performance_level` | The simplest way to stop the card downclocking |
 | Power limit (slider) | `hwmon/*/power1_cap` | Quiet and cool vs. fast, without touching voltages |
 | Power profile | `pp_power_profile_mode` | 3D_FULL_SCREEN, VIDEO, POWER_SAVING, COMPUTE… |
+| Fan: automatic, fixed speed, or a 4-point curve | `hwmon/*/pwm1`, `pwm1_enable` | The difference between a 7900 XT and a hairdryer |
+
+**Fan control runs in `tach-fan.service`, not in the window.** The GUI only writes
+`/etc/tach/fan.json` and lets the service apply it, so closing Tach — or killing
+it — cannot leave the fan pinned at its last value. The service restores
+automatic control when it stops, `ExecStopPost` does the same if it dies, and
+systemd restarts it on failure. Above 55 °C it never goes below 20 %, whatever
+the curve says; below that, zero RPM is allowed.
+
+If `power-profiles-daemon` is running it can overwrite the performance level, so
+Tuning offers a one-click override (`--block-action=amdgpu_dpm`) and a way to
+give it back.
 
 **Overlays** — MangoHud and vkBasalt presets, written into a block Tach owns
 (inside `# >>> tach managed block >>>`), with the previous file backed up first.
@@ -41,11 +53,11 @@ copy.
 
 ## What is deliberately missing
 
-**Overclocking and fan curves.** They live behind `pp_od_clk_voltage` and
-`gpu_od/fan_ctrl`, which this kernel does not expose (`ppfeaturemask=0xfff7bfff`).
-Tuning shows an Overdrive panel that says so and offers the kernel parameter to
-copy — rather than sliders that do nothing. Writing a wrong clock/voltage pair can
-hang the card, so when it is enabled it will get its own careful pass.
+**Overclocking.** Clocks and voltage live behind `pp_od_clk_voltage`, which this
+kernel does not expose (`ppfeaturemask=0xfff7bfff`). Tuning shows an Overdrive
+panel that says so and offers the kernel parameter to copy — rather than sliders
+that do nothing. Writing a wrong clock/voltage pair can hang the card, so when it
+is enabled it will get its own careful pass.
 
 **A global FSR switch.** There is no such knob on Linux. Radeon Super Resolution
 is `gamescope -F fsr` on the launch command, and FSR is otherwise a per-game
@@ -81,6 +93,9 @@ tach status --json          # for scripts and agents
 tach set-level high         # DPM level
 tach set-profile 1          # power profile index
 tach set-power-cap 250      # watts, clamped to the driver's min/max
+tach fan-apply '{"mode":"curve","curve":[{"temp":50,"percent":0},…]}'
+tach fan-auto               # hand the fan back to the card
+tach ppd-takeover           # keep power-profiles-daemon off the DPM level
 ```
 
 The `set-*` verbs write root-owned sysfs files, so the GUI runs them as
@@ -89,7 +104,10 @@ The `set-*` verbs write root-owned sysfs files, so the GUI runs them as
 ## How it stays honest
 
 - One sample a second; the `/proc` walk runs every five, which keeps idle cost
-  around **1% of one core**.
+  around **1-1.5% of one core**.
+- The fan loop is tested against a fake hwmon tree (`tests/fan-service.sh`): it
+  checks the curve, the zero-RPM point, the 20 % clamp on a hot card, and that
+  `pwm1_enable` goes back to 2 when the service is asked to stop.
 - The sysfs root is a constructor argument, so all 21 tests run against a fake
   card tree in a temp directory — no GPU, no root, no flakiness. Three bugs were
   caught this way, including `drm-engine-gfx` being `"1000 ns"` (the unit made

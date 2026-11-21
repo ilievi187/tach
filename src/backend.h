@@ -60,6 +60,13 @@ class Backend : public QObject {
     Q_PROPERTY(QString overdriveHint READ overdriveHint NOTIFY cardChanged)
     Q_PROPERTY(QVariantMap overlayTools READ overlayTools NOTIFY cardChanged)
 
+    Q_PROPERTY(QString fanMode READ fanMode NOTIFY fanChanged)
+    Q_PROPERTY(int fanPercent READ fanPercent NOTIFY fanChanged)
+    Q_PROPERTY(QVariantList fanCurve READ fanCurve NOTIFY fanChanged)
+    Q_PROPERTY(bool fanServiceActive READ fanServiceActive NOTIFY fanChanged)
+    Q_PROPERTY(bool powerDaemonActive READ powerDaemonActive NOTIFY cardChanged)
+    Q_PROPERTY(bool dpmManagedByTach READ dpmManagedByTach NOTIFY cardChanged)
+
     Q_PROPERTY(QString status READ status NOTIFY statusChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY statusChanged)
 
@@ -107,6 +114,13 @@ public:
     QString overdriveHint() const;
     QVariantMap overlayTools() const { return m_overlayTools; }
 
+    QString fanMode() const { return m_fanMode; }
+    int fanPercent() const { return m_fanPercent; }
+    QVariantList fanCurve() const { return m_fanCurve; }
+    bool fanServiceActive() const { return m_fanServiceActive; }
+    bool powerDaemonActive() const { return m_powerDaemonActive; }
+    bool dpmManagedByTach() const { return m_dpmManagedByTach; }
+
     QString status() const { return m_status; }
     bool busy() const { return m_busy; }
 
@@ -129,6 +143,19 @@ public:
     Q_INVOKABLE void copyToClipboard(const QString &text);
     Q_INVOKABLE void openUrl(const QString &url);
 
+    // Fan control runs as a root service (tach-fan.service) so the fan never
+    // stays pinned if the window closes or crashes: the GUI only writes a
+    // config and lets the service apply it.
+    Q_INVOKABLE void applyFanConfig(const QString &mode, int percent, const QVariantList &curve);
+    Q_INVOKABLE void setFanAuto();
+    Q_INVOKABLE void takeOverDpm();
+    Q_INVOKABLE void restoreDpm();
+
+    static int curvePercentAt(const QVariantList &curve, int temperature);
+    static QVariantList defaultFanCurve();
+    static QString fanConfigPath();
+    QString hwmonPath() const;
+
     // --- parsing helpers, unit tested directly -------------------------
     static int currentClockMhz(const QString &table);
     static qint64 parseSize(const QString &text);
@@ -148,6 +175,7 @@ signals:
     void processesChanged();
     void statusChanged();
     void errorChanged();
+    void fanChanged();
 
 private:
     void discoverCard();
@@ -155,6 +183,8 @@ private:
     void refreshProcesses();
     void appendHistory(QVariantList &list, int value);
     void detectOverlayTools();
+    void refreshFanState();
+    void readFanConfig();
     void runPrivileged(const QStringList &arguments, const QString &successMessage);
 
     QString readFile(const QString &path) const;
@@ -204,6 +234,14 @@ private:
     // per-process percentage between polls.
     QHash<int, qint64> m_engineTotals;
     qint64 m_engineStampNs = 0;
+
+    QString m_fanMode = "auto";
+    int m_fanPercent = 50;
+    QVariantList m_fanCurve;
+    bool m_fanServiceActive = false;
+    bool m_powerDaemonActive = false;
+    bool m_dpmManagedByTach = false;
+    int m_fanTicks = 0;
 
     QString m_status;
     bool m_busy = false;

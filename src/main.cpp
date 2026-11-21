@@ -24,7 +24,10 @@ int main(int argc, char *argv[]) {
 
     const QString first = args.value(0);
     const bool headless = first == "status" || first == "set-level" ||
-                          first == "set-profile" || first == "set-power-cap";
+                          first == "set-profile" || first == "set-power-cap" ||
+                          first == "fan-apply" || first == "fan-auto" ||
+                          first == "ppd-takeover" || first == "ppd-restore" ||
+                          first == "--fan-service";
 
     // `--screenshot out.png` renders the window offscreen and saves it, so the
     // README image can be regenerated without touching the desktop.
@@ -39,7 +42,7 @@ int main(int argc, char *argv[]) {
 
     QGuiApplication app(argc, argv);
     app.setApplicationName("tach");
-    app.setApplicationVersion("0.2.0");
+    app.setApplicationVersion("0.3.0");
 
     // Matches the window to tach.desktop, so the compositor (Wayland app_id)
     // and the launcher pick up the installed icon.

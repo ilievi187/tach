@@ -1,6 +1,9 @@
 #include "backend.h"
 
 #include <QClipboard>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QDesktopServices>
 #include <QUrl>
 #include <QDateTime>
@@ -130,7 +133,142 @@ void Backend::setCardPath(const QString &cardPath) {
     m_error.clear();
 
     detectOverlayTools();
+    readFanConfig();
+    refreshFanState();
     emit cardChanged();
+}
+
+QString Backend::hwmonPath() const {
+    return firstHwmon(m_card);
+}
+
+QString Backend::fanConfigPath() {
+    return qEnvironmentVariable("TACH_FAN_CONFIG", QStringLiteral("/etc/tach/fan.json"));
+}
+
+// Temps are fixed so the UI stays four sliders instead of a graph editor.
+QVariantList Backend::defaultFanCurve() {
+    return QVariantList{
+        QVariantMap{{"temp", 50}, {"percent", 0}},
+        QVariantMap{{"temp", 65}, {"percent", 35}},
+        QVariantMap{{"temp", 80}, {"percent", 60}},
+        QVariantMap{{"temp", 90}, {"percent", 100}},
+    };
+}
+
+// Piecewise linear, flat outside the ends. The fan service and the tests share
+// this so what the UI promises is exactly what gets written to pwm1.
+int Backend::curvePercentAt(const QVariantList &curve, int temperature) {
+    if (curve.isEmpty())
+        return 50;
+
+    QList<QPair<int, int>> points;
+    for (const auto &entry : curve) {
+        const QVariantMap map = entry.toMap();
+        points.append({map.value("temp").toInt(), map.value("percent").toInt()});
+    }
+    std::sort(points.begin(), points.end(), [](const auto &a, const auto &b) {
+        return a.first < b.first;
+    });
+
+    if (temperature <= points.first().first)
+        return points.first().second;
+    if (temperature >= points.last().first)
+        return points.last().second;
+
+    for (int i = 1; i < points.size(); ++i) {
+        const auto low = points.at(i - 1);
+        const auto high = points.at(i);
+        if (temperature <= high.first) {
+            const double span = high.first - low.first;
+            if (span <= 0)
+                return high.second;
+            const double t = (temperature - low.first) / span;
+            return qRound(low.second + t * (high.second - low.second));
+        }
+    }
+    return points.last().second;
+}
+
+void Backend::readFanConfig() {
+    QFile file(fanConfigPath());
+    if (!file.open(QIODevice::ReadOnly)) {
+        // No config yet means the service is not controlling anything.
+        m_fanMode = "auto";
+        m_fanPercent = 50;
+        m_fanCurve = defaultFanCurve();
+        emit fanChanged();
+        return;
+    }
+    const QJsonObject object = QJsonDocument::fromJson(file.readAll()).object();
+    m_fanMode = object.value("mode").toString("auto");
+    m_fanPercent = object.value("staticPercent").toInt(50);
+
+    QVariantList curve;
+    for (const auto &entry : object.value("curve").toArray()) {
+        const QJsonObject point = entry.toObject();
+        curve.append(QVariantMap{
+            {"temp", point.value("temp").toInt()},
+            {"percent", point.value("percent").toInt()},
+        });
+    }
+    m_fanCurve = curve.isEmpty() ? defaultFanCurve() : curve;
+    emit fanChanged();
+}
+
+void Backend::refreshFanState() {
+    auto run = [](const QStringList &arguments) {
+        QProcess process;
+        process.start("systemctl", arguments);
+        if (!process.waitForFinished(700))
+            return QString();
+        return QString::fromUtf8(process.readAllStandardOutput()).trimmed();
+    };
+
+    const bool serviceActive = run({"is-active", "tach-fan"}) == QLatin1String("active");
+    const bool daemonActive = run({"is-active", "power-profiles-daemon"}) == QLatin1String("active");
+    const bool managed = QFileInfo::exists(
+        "/etc/systemd/system/power-profiles-daemon.service.d/tach.conf");
+
+    if (serviceActive != m_fanServiceActive || daemonActive != m_powerDaemonActive ||
+        managed != m_dpmManagedByTach) {
+        m_fanServiceActive = serviceActive;
+        m_powerDaemonActive = daemonActive;
+        m_dpmManagedByTach = managed;
+        emit fanChanged();
+        emit cardChanged();
+    }
+}
+
+void Backend::applyFanConfig(const QString &mode, int percent, const QVariantList &curve) {
+    QJsonArray points;
+    for (const auto &entry : curve) {
+        const QVariantMap map = entry.toMap();
+        points.append(QJsonObject{
+            {"temp", map.value("temp").toInt()},
+            {"percent", map.value("percent").toInt()},
+        });
+    }
+    const QJsonObject object{
+        {"mode", mode},
+        {"staticPercent", qBound(0, percent, 100)},
+        {"tempSource", "junction"},
+        {"curve", points},
+    };
+    const QString json = QString::fromUtf8(QJsonDocument(object).toJson(QJsonDocument::Compact));
+    runPrivileged({"tach", "fan-apply", json}, tr("Fan settings applied"));
+}
+
+void Backend::setFanAuto() {
+    runPrivileged({"tach", "fan-auto"}, tr("Fan returned to automatic"));
+}
+
+void Backend::takeOverDpm() {
+    runPrivileged({"tach", "ppd-takeover"}, tr("Tach now owns the DPM level"));
+}
+
+void Backend::restoreDpm() {
+    runPrivileged({"tach", "ppd-restore"}, tr("power-profiles-daemon restored"));
 }
 
 void Backend::detectOverlayTools() {
@@ -201,6 +339,8 @@ void Backend::poll() {
     // broken at startup. Five seconds keeps idle cost around 1% of a core.
     if (++m_ticks == 1 || m_ticks % 5 == 0)
         refreshProcesses();
+    if (m_ticks % 15 == 0)
+        refreshFanState();
 }
 
 void Backend::appendHistory(QVariantList &list, int value) {

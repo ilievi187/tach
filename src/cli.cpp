@@ -2,11 +2,20 @@
 
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QProcess>
+#include <QThread>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QProcess>
 #include <QTextStream>
 
 #include "backend.h"
+
+#include <csignal>
+#include <cstdio>
 
 namespace {
 
@@ -184,6 +193,253 @@ int setPowerCapCommand(const QStringList &args) {
     return 0;
 }
 
+// ---------------------------------------------------------------- fan ----
+
+volatile std::sig_atomic_t gStop = 0;
+
+void requestStop(int) {
+    gStop = 1;
+}
+
+bool writeSysfs(const QString &path, const QString &value, const QString &why) {
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        err() << why << ": cannot write " << path << "\n";
+        return false;
+    }
+    file.write(value.toUtf8());
+    file.close();
+    return true;
+}
+
+int readInt(const QString &path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return 0;
+    return QString::fromUtf8(file.readAll()).trimmed().toInt();
+}
+
+QString hwmonFor(const QString &card) {
+    const QDir dir(card + "/hwmon");
+    const auto entries = dir.entryList({"hwmon*"}, QDir::Dirs | QDir::NoDotAndDotDot);
+    return entries.isEmpty() ? QString() : card + "/hwmon/" + entries.first();
+}
+
+// The GUI never writes pwm1 itself: this loop owns the fan, so closing the
+// window cannot leave it pinned at whatever it was last set to. systemd
+// restarts it on failure and ExecStopPost / the guard below restore automatic
+// control on the way out.
+int runFanService() {
+    // TACH_HWMON exists so the tests can drive the loop against a fake tree;
+    // in normal use the card is discovered the same way the GUI does it.
+    QString hwmon = qEnvironmentVariable("TACH_HWMON");
+    if (hwmon.isEmpty()) {
+        Backend backend;
+        if (!backend.available()) {
+            err() << backend.error() << "\n";
+            return 1;
+        }
+        hwmon = hwmonFor(backend.cardPath());
+    }
+    if (hwmon.isEmpty()) {
+        err() << "no hwmon directory\n";
+        return 1;
+    }
+
+    const QString pwm = hwmon + "/pwm1";
+    const QString enable = hwmon + "/pwm1_enable";
+    const QString edge = hwmon + "/temp1_input";
+    const QString junction = hwmon + "/temp2_input";
+    const QString configPath = Backend::fanConfigPath();
+
+    std::signal(SIGTERM, requestStop);
+    std::signal(SIGINT, requestStop);
+
+    struct Guard {
+        QString path;
+        ~Guard() {
+            QFile file(path);
+            if (file.open(QIODevice::WriteOnly))
+                file.write("2");
+        }
+    } guard{enable};
+
+    int lastPercent = -1;
+    int lastMode = -1; // 0 = automatic, 1 = manual
+    int failures = 0;
+
+    while (!gStop) {
+        QJsonObject config;
+        QFile file(configPath);
+        if (file.open(QIODevice::ReadOnly))
+            config = QJsonDocument::fromJson(file.readAll()).object();
+
+        const QString mode = config.value("mode").toString("auto");
+        const int staticPercent = config.value("staticPercent").toInt(50);
+        QVariantList curve;
+        for (const auto &entry : config.value("curve").toArray()) {
+            const QJsonObject point = entry.toObject();
+            curve.append(QVariantMap{
+                {"temp", point.value("temp").toInt()},
+                {"percent", point.value("percent").toInt()},
+            });
+        }
+        if (curve.isEmpty())
+            curve = Backend::defaultFanCurve();
+
+        int temp = readInt(junction) / 1000;
+        if (temp <= 0)
+            temp = readInt(edge) / 1000;
+        if (temp <= 0) {
+            if (++failures >= 3) {
+                err() << "cannot read a temperature, returning the fan to automatic\n";
+                return 1;
+            }
+            QThread::msleep(500);
+            continue;
+        }
+        failures = 0;
+
+        if (mode == QLatin1String("auto")) {
+            if (lastMode != 0) {
+                writeSysfs(enable, "2", "fan service");
+                lastMode = 0;
+                lastPercent = -1;
+            }
+        } else {
+            int target = mode == QLatin1String("curve") ? Backend::curvePercentAt(curve, temp)
+                                                        : staticPercent;
+            // Never let the software curve stop the fan on a hot card.
+            if (temp >= 55 && target < 20)
+                target = 20;
+            target = qBound(0, target, 100);
+
+            if (lastMode != 1) {
+                writeSysfs(enable, "1", "fan service");
+                lastMode = 1;
+            }
+            if (target != lastPercent) {
+                const int raw = qRound(target * 255.0 / 100.0);
+                if (writeSysfs(pwm, QString::number(raw), "fan service"))
+                    std::fprintf(stderr, "tach-fan: %d C -> %d %%\n", temp, target);
+                lastPercent = target;
+            }
+        }
+
+        for (int i = 0; i < 20 && !gStop; ++i)
+            QThread::msleep(100);
+    }
+    return 0;
+}
+
+int fanApplyCommand(const QStringList &args) {
+    const QString json = args.value(1);
+    if (json.isEmpty()) {
+        err() << "usage: tach fan-apply '<json>'\n";
+        return 2;
+    }
+    const QJsonObject object = QJsonDocument::fromJson(json.toUtf8()).object();
+    if (!object.contains("mode")) {
+        err() << "fan config needs a mode\n";
+        return 2;
+    }
+
+    const QString path = Backend::fanConfigPath();
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        err() << "cannot write " << path << " (run under pkexec)\n";
+        return 1;
+    }
+    file.write(QJsonDocument(object).toJson(QJsonDocument::Indented));
+    file.close();
+
+    // The unit ships with the package; enabling it here is the one-time step.
+    QProcess::execute("systemctl", {"enable", "tach-fan"});
+    const int code = QProcess::execute("systemctl", {"restart", "tach-fan"});
+    if (code != 0) {
+        err() << "config written, but tach-fan.service did not start\n";
+        return 1;
+    }
+    out() << "applied\n";
+    out().flush();
+    return 0;
+}
+
+int fanAutoCommand() {
+    Backend backend;
+    if (!backend.available()) {
+        err() << backend.error() << "\n";
+        return 1;
+    }
+    const QString hwmon = hwmonFor(backend.cardPath());
+    if (hwmon.isEmpty()) {
+        err() << "no hwmon directory\n";
+        return 1;
+    }
+    if (!writeSysfs(hwmon + "/pwm1_enable", "2", "fan auto"))
+        return 1;
+
+    // Keep the config honest so the next start does not re-take the fan.
+    const QString path = Backend::fanConfigPath();
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QJsonDocument(QJsonObject{{"mode", "auto"}}).toJson());
+        file.close();
+    }
+    out() << "auto\n";
+    out().flush();
+    return 0;
+}
+
+// power-profiles-daemon writes the amdgpu DPM level from its own profile, which
+// fights the Performance level control. The override keeps it out of the way
+// without touching anything else the daemon does.
+int ppdCommand(bool restore) {
+    const QString dir = "/etc/systemd/system/power-profiles-daemon.service.d";
+    const QString override = dir + "/tach.conf";
+
+    if (restore) {
+        QFile::remove(override);
+        QDir().rmdir(dir);
+        QProcess::execute("systemctl", {"daemon-reload"});
+        QProcess::execute("systemctl", {"restart", "power-profiles-daemon"});
+        out() << "restored\n";
+        out().flush();
+        return 0;
+    }
+
+    QString executable = "/usr/lib/power-profiles-daemon";
+    QFile unit("/usr/lib/systemd/system/power-profiles-daemon.service");
+    if (unit.open(QIODevice::ReadOnly)) {
+        for (const auto &line : QString::fromUtf8(unit.readAll()).split('\n'))
+            if (line.startsWith("ExecStart="))
+                executable = line.mid(10).trimmed().section(' ', 0, 0);
+    }
+
+    QDir().mkpath(dir);
+    QFile file(override);
+    if (!file.open(QIODevice::WriteOnly)) {
+        err() << "cannot write " << override << " (run under pkexec)\n";
+        return 1;
+    }
+    file.write(QString("[Service]\n"
+                       "ExecStart=\n"
+                       "ExecStart=%1 --block-action=amdgpu_dpm\n")
+                   .arg(executable)
+                   .toUtf8());
+    file.close();
+
+    QProcess::execute("systemctl", {"daemon-reload"});
+    if (QProcess::execute("systemctl", {"restart", "power-profiles-daemon"}) != 0) {
+        err() << "override written, but power-profiles-daemon did not restart\n";
+        return 1;
+    }
+    out() << "dpm owned by tach\n";
+    out().flush();
+    return 0;
+}
+
 } // namespace
 
 int runCli(const QStringList &args) {
@@ -196,7 +452,18 @@ int runCli(const QStringList &args) {
         return setProfileCommand(args);
     if (command == "set-power-cap")
         return setPowerCapCommand(args);
+    if (command == "fan-apply")
+        return fanApplyCommand(args);
+    if (command == "fan-auto")
+        return fanAutoCommand();
+    if (command == "--fan-service")
+        return runFanService();
+    if (command == "ppd-takeover")
+        return ppdCommand(false);
+    if (command == "ppd-restore")
+        return ppdCommand(true);
     err() << "usage: tach status [--json] | tach set-level <auto|high|low> | "
-             "tach set-profile <index> | tach set-power-cap <watts>\n";
+             "tach set-profile <index> | tach set-power-cap <watts> | "
+             "tach fan-apply '<json>' | tach fan-auto | tach ppd-takeover | tach ppd-restore\n";
     return 2;
 }

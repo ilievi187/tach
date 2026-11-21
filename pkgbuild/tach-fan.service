@@ -1,0 +1,15 @@
+[Unit]
+Description=Tach GPU fan control
+Documentation=https://github.com/ilievi187/tach
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/tach --fan-service
+# Never leave the fan pinned if the service dies for any reason.
+ExecStopPost=/usr/bin/tach fan-auto
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

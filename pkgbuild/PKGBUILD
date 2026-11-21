@@ -1,5 +1,5 @@
 pkgname=tach
-pkgver=0.2.0
+pkgver=0.3.0
 pkgrel=1
 pkgdesc='AMD GPU panel for Omarchy: clocks, temperatures, VRAM and per-process use'
 arch=('x86_64')
@@ -21,4 +21,5 @@ package() {
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 "$startdir/tach.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/tach.svg"
   install -Dm644 "$startdir/tach.desktop" "$pkgdir/usr/share/applications/tach.desktop"
+  install -Dm644 "$startdir/tach-fan.service" "$pkgdir/usr/lib/systemd/system/tach-fan.service"
 }

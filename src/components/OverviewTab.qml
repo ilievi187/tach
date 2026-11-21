@@ -23,6 +23,36 @@ Flickable {
         width: root.width
         spacing: 14
 
+        Rectangle {
+            Layout.fillWidth: true
+            visible: backend.junctionTemp >= 95
+            implicitHeight: heat.implicitHeight + 24
+            radius: theme.radius
+            color: "#2a100d"
+            border.width: 1
+            border.color: "#5c2019"
+
+            RowLayout {
+                id: heat
+                anchors.fill: parent
+                anchors.margins: 12
+                spacing: 10
+
+                Text {
+                    text: "▲"
+                    color: "#ff6b5e"
+                    font.pixelSize: 14
+                }
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: qsTr("Junction at %1 °C — the card is near its thermal limit. Lower the power limit or raise the fan curve.").arg(backend.junctionTemp)
+                    color: "#ffb4ac"
+                    font.pixelSize: 12
+                }
+            }
+        }
+
         RowLayout {
             Layout.fillWidth: true
             spacing: 14

@@ -17,11 +17,13 @@ Flickable {
         policy: root.contentHeight > root.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
     }
 
-    ColumnLayout {
+    GridLayout {
         id: content
 
         width: root.width
-        spacing: 14
+        columns: root.width > 880 ? 2 : 1
+        columnSpacing: 14
+        rowSpacing: 14
 
         Panel {
             Layout.fillWidth: true
@@ -58,6 +60,10 @@ Flickable {
                     }
                 }
             }
+        }
+
+        FanPanel {
+            Layout.fillWidth: true
         }
 
         Panel {
@@ -178,6 +184,39 @@ Flickable {
                 text: qsTr("This GPU does not expose power profiles.")
                 color: "#8b93a1"
                 font.pixelSize: 12
+            }
+        }
+
+        Panel {
+            Layout.fillWidth: true
+            visible: backend.powerDaemonActive
+            title: qsTr("DPM ownership")
+            hint: backend.dpmManagedByTach ? qsTr("Tach manages it") : qsTr("shared")
+
+            Text {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                color: "#8b93a1"
+                font.pixelSize: 12
+                text: backend.dpmManagedByTach
+                      ? qsTr("power-profiles-daemon no longer touches the amdgpu DPM level, so the performance level above stays where you put it.")
+                      : qsTr("power-profiles-daemon is running and may overwrite the performance level with its own profile. Let Tach own the DPM level, or expect the two to fight.")
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Text {
+                    Layout.fillWidth: true
+                    text: backend.dpmManagedByTach ? qsTr("override active") : qsTr("override not installed")
+                    color: "#5f6773"
+                    font.pixelSize: 11
+                }
+                Button {
+                    text: backend.dpmManagedByTach ? qsTr("Give it back") : qsTr("Let Tach manage it")
+                    enabled: !backend.busy
+                    onClicked: backend.dpmManagedByTach ? backend.restoreDpm() : backend.takeOverDpm()
+                }
             }
         }
 

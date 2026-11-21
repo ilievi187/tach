@@ -157,6 +157,19 @@ private slots:
         QVERIFY(!backend.canControl());
     }
 
+    void interpolatesTheFanCurve()
+    {
+        const QVariantList curve = Backend::defaultFanCurve();
+        // 50/0, 65/35, 80/60, 90/100
+        QCOMPARE(Backend::curvePercentAt(curve, 30), 0);    // flat below the first point
+        QCOMPARE(Backend::curvePercentAt(curve, 50), 0);
+        QCOMPARE(Backend::curvePercentAt(curve, 65), 35);
+        QCOMPARE(Backend::curvePercentAt(curve, 72), 47);   // halfway 65..80
+        QCOMPARE(Backend::curvePercentAt(curve, 90), 100);
+        QCOMPARE(Backend::curvePercentAt(curve, 105), 100); // flat above the last point
+        QCOMPARE(Backend::curvePercentAt(QVariantList{}, 70), 50);
+    }
+
     void parsesPowerProfiles()
     {
         const QString table = "PROFILE_INDEX(NAME) CLOCK_TYPE(NAME) FPS\n"
